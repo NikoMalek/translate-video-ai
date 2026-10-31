@@ -1,7 +1,12 @@
 const message = document.getElementById("message");
 
+function log(message, details) {
+  console.log("[Translate Video AI][popup]", message, details || "");
+}
+
 document.getElementById("start").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  log("Botón procesar pulsado.", { tabId: tab?.id, url: tab?.url });
 
   if (!tab?.id || !/^https:\/\/(www\.)?youtube\.com\//.test(tab.url || "")) {
     message.textContent = "Abre primero un video de YouTube.";
@@ -9,18 +14,27 @@ document.getElementById("start").addEventListener("click", async () => {
   }
 
   message.textContent = "Pausando el video y obteniendo la transcripción...";
-  const response = await chrome.runtime.sendMessage({
-    action: "startTranslation",
-    tabId: tab.id,
-    sourceLanguage: document.getElementById("sourceLanguage").value,
-    targetLanguage: document.getElementById("targetLanguage").value,
-    voice: document.getElementById("voice").value,
-    model: document.getElementById("model").value
-  });
-  message.textContent = response?.ok ? "Procesando el audio..." : response?.error || "No se pudo iniciar.";
+  try {
+    const request = {
+      action: "startTranslation",
+      tabId: tab.id,
+      sourceLanguage: document.getElementById("sourceLanguage").value,
+      targetLanguage: document.getElementById("targetLanguage").value,
+      voice: document.getElementById("voice").value,
+      model: document.getElementById("model").value
+    };
+    log("Enviando solicitud al background.", request);
+    const response = await chrome.runtime.sendMessage(request);
+    log("Respuesta del background recibida.", response);
+    message.textContent = response?.ok ? "Listo." : response?.error || "No se pudo iniciar.";
+  } catch (error) {
+    console.error("[Translate Video AI][popup] Error enviando solicitud.", error);
+    message.textContent = `Error: ${error.message}`;
+  }
 });
 
 document.getElementById("stop").addEventListener("click", async () => {
+  log("Botón detener pulsado.");
   await chrome.runtime.sendMessage({ action: "stopTranslation" });
   message.textContent = "Detenido.";
 });

@@ -1,5 +1,9 @@
 fastapi
 uvicorn
 yt-dlp
-faster-whisper
+faster-whisper==1.2.1
+av==16.1.0
+transformers
+torch
+sentencepiece
 python-dotenv

@@ -1,7 +1,11 @@
 let subtitle;
 let status;
 let savedVideo;
-let speechQueue = Promise.resolve();
+let speechRun = 0;
+
+function log(message, details) {
+  console.log("[Translate Video AI][content]", message, details || "");
+}
 
 function createOverlay() {
   if (subtitle) return;
@@ -37,40 +41,76 @@ function prepareDownload() {
   video.pause();
   savedVideo = video;
   setStatus("Video pausado. Descargando solo el audio...");
+  log("Video preparado.", { url: window.location.href });
   return { ok: true, url: window.location.href };
 }
 
-function speak(text, voiceName) {
-  speechQueue = speechQueue.then(() => new Promise((resolve) => {
-    if (!("speechSynthesis" in window) || !text.trim()) {
-      resolve();
-      return;
+function speak(text, lang) {
+  const run = ++speechRun;
+  window.speechSynthesis.cancel();
+
+  const sentences = text.match(/[^.!?…]+[.!?…]*\s*/g) || [text];
+  const parts = [];
+  let buffer = "";
+  for (const sentence of sentences) {
+    if (buffer && (buffer + sentence).length > 200) {
+      parts.push(buffer);
+      buffer = "";
     }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = voiceName;
+    buffer += sentence;
+  }
+  if (buffer) parts.push(buffer);
+
+  let index = 0;
+  const next = () => {
+    if (run !== speechRun || index >= parts.length) return;
+    const utterance = new SpeechSynthesisUtterance(parts[index++].trim());
+    utterance.lang = lang;
     utterance.rate = 1;
-    utterance.onend = resolve;
-    utterance.onerror = resolve;
+    utterance.onend = next;
+    utterance.onerror = next;
     window.speechSynthesis.speak(utterance);
-  }));
+  };
+  next();
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "prepareDownload") {
+    log("Solicitud de preparación recibida.");
     sendResponse(prepareDownload());
     return true;
   }
-  if (message.action === "translationStatus") setStatus(message.text);
+  if (message.action === "translationStatus") {
+    log("Estado recibido.", message.text);
+    setStatus(message.text);
+  }
   if (message.action === "translatedVideo") {
+    log("Traducción recibida.", { textLength: message.text?.length || 0 });
     setStatus("Traducción lista. Reproduciendo...");
-    savedVideo?.play().catch(() => {});
+    if (!savedVideo) {
+      log("No hay video guardado para reproducir.");
+    } else {
+      savedVideo.muted = true;
+      savedVideo.currentTime = 0;
+      savedVideo.play().then(
+        () => log("Video reproducido."),
+        (error) => {
+          console.error("[Translate Video AI][content] No se pudo reproducir el video.", error);
+          setStatus("Traducción lista, pero YouTube bloqueó la reproducción automática.");
+        }
+      );
+    }
     speak(message.text, message.voice);
   }
   if (message.action === "stopProcessing") {
+    log("Solicitud de detención recibida.");
+    speechRun++;
     window.speechSynthesis?.cancel();
+    if (savedVideo) savedVideo.muted = false;
     subtitle && (subtitle.textContent = "");
     status && (status.textContent = "");
   }
 });
 
 createOverlay();
+log("Content script cargado.", window.location.href);
