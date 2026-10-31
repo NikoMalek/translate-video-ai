@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Traductor de YouTube</title>
+  <style>
+    body { width: 290px; margin: 0; padding: 16px; font: 14px Arial, sans-serif; }
+    h3 { margin: 0 0 14px; }
+    label { display: block; margin: 10px 0 4px; }
+    select, button { box-sizing: border-box; width: 100%; padding: 8px; }
+    button { margin-top: 16px; cursor: pointer; }
+    #message { min-height: 18px; margin-top: 10px; color: #555; }
+  </style>
+</head>
+<body>
+  <h3>Traductor de YouTube</h3>
+  <label for="sourceLanguage">Idioma del video</label>
+  <select id="sourceLanguage">
+    <option value="eng_Latn">Inglés</option>
+    <option value="spa_Latn">Español</option>
+    <option value="fra_Latn">Francés</option>
+    <option value="deu_Latn">Alemán</option>
+    <option value="ita_Latn">Italiano</option>
+    <option value="por_Latn">Portugués</option>
+    <option value="jpn_Jpan">Japonés</option>
+    <option value="kor_Hang">Coreano</option>
+  </select>
+
+  <label for="targetLanguage">Traducir a</label>
+  <select id="targetLanguage">
+    <option value="spa_Latn">Español</option>
+    <option value="eng_Latn">Inglés</option>
+    <option value="fra_Latn">Francés</option>
+    <option value="deu_Latn">Alemán</option>
+    <option value="ita_Latn">Italiano</option>
+    <option value="por_Latn">Portugués</option>
+  </select>
+
+  <label for="voice">Voz del navegador</label>
+  <select id="voice">
+    <option value="es-ES">Español</option>
+    <option value="en-US">Inglés</option>
+    <option value="fr-FR">Francés</option>
+    <option value="de-DE">Alemán</option>
+    <option value="pt-BR">Portugués</option>
+  </select>
+
+  <label for="model">Modelo Whisper local</label>
+  <select id="model">
+    <option value="tiny">Tiny: más rápido, menos preciso</option>
+    <option value="base" selected>Base: recomendado</option>
+    <option value="small">Small: más preciso, más lento</option>
+    <option value="medium">Medium: alta precisión, lento</option>
+    <option value="large-v3">Large-v3: máxima precisión, muy lento</option>
+  </select>
+
+  <button id="start">Procesar y traducir</button>
+  <button id="stop" type="button">Detener</button>
+  <div id="message" role="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
