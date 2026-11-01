@@ -1,5 +1,10 @@
 const message = document.getElementById("message");
 
+const TARGET_VOICES = {
+  spa_Latn: "es-ES", eng_Latn: "en-US", fra_Latn: "fr-FR",
+  deu_Latn: "de-DE", ita_Latn: "it-IT", por_Latn: "pt-BR"
+};
+
 function log(message, details) {
   console.log("[Translate Video AI][popup]", message, details || "");
 }
@@ -20,7 +25,7 @@ document.getElementById("start").addEventListener("click", async () => {
       tabId: tab.id,
       sourceLanguage: document.getElementById("sourceLanguage").value,
       targetLanguage: document.getElementById("targetLanguage").value,
-      voice: document.getElementById("voice").value,
+      voice: TARGET_VOICES[document.getElementById("targetLanguage").value],
       model: document.getElementById("model").value
     };
     log("Enviando solicitud al background.", request);

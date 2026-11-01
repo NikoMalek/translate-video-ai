@@ -6,4 +6,7 @@ av==16.1.0
 transformers
 torch
 sentencepiece
+edge-tts
+demucs
 python-dotenv
+numpy

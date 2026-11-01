@@ -25,6 +25,33 @@ resultado a la extensión. La extensión reproduce la traducción con
    La primera ejecución puede tardar mientras se descargan los modelos de
    Whisper y NLLB.
 
+### Pipeline local de doblaje
+
+El pipeline reutilizable está en `backend\pipeline.py`. Procesa el video
+completo y mantiene los modelos en memoria entre ejecuciones:
+
+```powershell
+$env:DEVICE = "cuda"
+python -c "from backend.pipeline import procesar_video; print(procesar_video('URL_DEL_VIDEO'))"
+```
+
+Usa `$env:DEVICE = "cpu"` para ejecutar sin GPU. El pipeline necesita también
+`ffmpeg`, `edge-tts` y `demucs`, incluidos en `backend\requirements.txt`.
+
+### Trabajos de procesamiento
+
+La extensión usa trabajos asíncronos para no mantener una petición HTTP abierta
+durante todo el procesamiento:
+
+```text
+POST /api/jobs                  crea el trabajo y devuelve jobId
+GET  /api/jobs/{jobId}          consulta estado y progreso
+GET  /api/jobs/{jobId}/audio    descarga dubbed.mp3 al terminar
+```
+
+La cola local ejecuta un trabajo GPU a la vez. Los trabajos se almacenan en
+memoria, por lo que se pierden si el proceso del backend se reinicia.
+
 ## Extensión
 
 1. Abre `chrome://extensions`, activa **Developer mode** y selecciona la

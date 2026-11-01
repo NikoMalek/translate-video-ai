@@ -1,4 +1,4 @@
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "http://localhost:8000"; // Cambia esto a la URL de tu backend
 let processing = false;
 let controller = null;
 let activeTabId = null;
@@ -11,6 +11,10 @@ function log(message, details) {
 function stopKeepAlive() {
   clearInterval(keepAlive);
   keepAlive = null;
+}
+
+function setBadge(tabId, text) {
+  chrome.action.setBadgeText({ tabId, text }).catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -64,9 +68,9 @@ async function startTranslation({ tabId, sourceLanguage, targetLanguage, voice, 
   activeTabId = tabId;
   controller = new AbortController();
   keepAlive = setInterval(() => chrome.runtime.getPlatformInfo(), 20000);
-
+  let failed = false;
   try {
-    notifyTab(tabId, "Enviando el video al backend...");
+    notifyTab(tabId, "Creando trabajo de procesamiento...");
     log("Enviando transcripción y traducción al backend.", {
       url: preparation.url,
       model: model || "base",
@@ -76,7 +80,7 @@ async function startTranslation({ tabId, sourceLanguage, targetLanguage, voice, 
 
     let response;
     try {
-      response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+      response = await fetch(`${BACKEND_URL}/api/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
@@ -84,7 +88,8 @@ async function startTranslation({ tabId, sourceLanguage, targetLanguage, voice, 
           videoUrl: preparation.url,
           model: model || "base",
           sourceLanguage,
-          targetLanguage
+          targetLanguage,
+          voice
         })
       });
     } catch (error) {
@@ -99,30 +104,64 @@ async function startTranslation({ tabId, sourceLanguage, targetLanguage, voice, 
     } catch {
       throw new Error(`El backend respondió con HTTP ${response.status}.`);
     }
-    log("Respuesta del backend recibida.", {
+    log("Job creado.", {
       status: response.status,
-      ok: result?.ok,
-      transcriptLength: result?.transcript?.length || 0,
-      translationLength: result?.translation?.length || 0
+      jobId: result?.jobId
     });
-    if (!response.ok || !result.ok || !result.transcript || !result.translation) {
-      throw new Error(result.detail || result.error || "No se pudo procesar el video.");
+    if (!response.ok || !result.jobId) {
+      throw new Error(result.detail || result.error || "No se pudo crear el trabajo.");
     }
-    if (!processing) throw new Error("Detenido.");
 
-    log("Enviando traducción a la pestaña.", {
-      tabId,
-      translationLength: result.translation.length
-    });
+    const completed = await waitForJob(tabId, result.jobId);
+    if (!processing) throw new Error("Detenido.");
     await chrome.tabs.sendMessage(tabId, {
-      action: "translatedVideo",
-      text: result.translation,
-      voice
+      action: "audioReady",
+      audioUrl: new URL(completed.audioUrl, BACKEND_URL).toString(),
+      jobId: result.jobId
     });
-    notifyTab(tabId, "Traducción lista. Reproduciendo video...");
+    notifyTab(tabId, "Audio traducido descargado. Usa el reproductor para escucharlo.");
+  } catch (error) {
+    failed = error.message !== "Detenido.";
+    chrome.tabs.sendMessage(tabId, { action: "stopProcessing" }).catch(() => {});
+    throw error;
   } finally {
     processing = false;
     stopKeepAlive();
+    setBadge(tabId, failed ? "ERR" : "");
+  }
+
+  async function waitForJob(tabId, jobId) {
+    while (processing) {
+      let response;
+      try {
+        response = await fetch(`${BACKEND_URL}/api/jobs/${jobId}`, {
+          signal: controller.signal
+        });
+      } catch (error) {
+        if (error.name === "AbortError") throw new Error("Detenido.");
+        throw new Error(`No se pudo consultar el job: ${error.message}`);
+      }
+
+      const result = await response.json();
+      log("Estado del job recibido.", {
+        jobId,
+        status: result.status,
+        stage: result.stage,
+        progress: result.progress
+      });
+      if (!response.ok) {
+        throw new Error(result.detail || "No se pudo consultar el job.");
+      }
+      if (result.status === "failed") {
+        throw new Error(result.error || "El procesamiento falló.");
+      }
+      if (result.status === "completed" && result.audioUrl) return result;
+
+      notifyTab(tabId, `Procesando: ${result.stage} (${Math.round(result.progress * 100)}%)`);
+      setBadge(tabId, `${Math.round(result.progress * 100)}%`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    throw new Error("Detenido.");
   }
 }
 

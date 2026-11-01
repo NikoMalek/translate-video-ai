@@ -10,6 +10,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Runtime / temp files
+job_data/
 *.tmp
 *.temp
 *.m4a
