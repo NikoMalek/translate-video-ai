@@ -60,6 +60,14 @@ SUPPORTED_TRANSLATION_LANGUAGES = {
     "jpn_Jpan",
     "kor_Hang",
 }
+VOICE_LANGUAGE_PREFIXES = {
+    "spa_Latn": "es-",
+    "eng_Latn": "en-",
+    "fra_Latn": "fr-",
+    "deu_Latn": "de-",
+    "ita_Latn": "it-",
+    "por_Latn": "pt-",
+}
 
 @app.post("/api/jobs", status_code=202)
 def create_job(request: JobRequest):
@@ -73,6 +81,12 @@ def create_job(request: JobRequest):
         or request.targetLanguage not in SUPPORTED_TRANSLATION_LANGUAGES
     ):
         raise HTTPException(status_code=400, detail="Idioma de traducción no permitido.")
+    voice_prefix = VOICE_LANGUAGE_PREFIXES.get(request.targetLanguage)
+    if voice_prefix and not request.voice.startswith(voice_prefix):
+        raise HTTPException(
+            status_code=400,
+            detail="La voz seleccionada no corresponde al idioma de destino.",
+        )
     return job_manager.create(
         url=str(request.videoUrl),
         source_language=request.sourceLanguage,

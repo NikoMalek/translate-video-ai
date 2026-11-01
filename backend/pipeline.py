@@ -53,7 +53,7 @@ LANGUAGE_CODES = {
     "kor_Hang": "ko",
 }
 DEFAULT_TTS_VOICES = {
-    "es-ES": "es-ES-ElviraNeural",
+    "es-ES": "es-CL-LorenzoNeural",
     "en-US": "en-US-JennyNeural",
     "fr-FR": "fr-FR-DeniseNeural",
     "de-DE": "de-DE-KatjaNeural",

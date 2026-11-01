@@ -1,0 +1,777 @@
+{
+  "spa_Latn": [
+    {
+      "shortName": "es-AR-ElenaNeural",
+      "locale": "es-AR",
+      "gender": "Female",
+      "displayName": "Argentina - Elena (femenina)",
+      "displayNameEn": "Argentina - Elena (female)"
+    },
+    {
+      "shortName": "es-AR-TomasNeural",
+      "locale": "es-AR",
+      "gender": "Male",
+      "displayName": "Argentina - Tomas (masculina)",
+      "displayNameEn": "Argentina - Tomas (male)"
+    },
+    {
+      "shortName": "es-BO-MarceloNeural",
+      "locale": "es-BO",
+      "gender": "Male",
+      "displayName": "Bolivia - Marcelo (masculina)",
+      "displayNameEn": "Bolivia - Marcelo (male)"
+    },
+    {
+      "shortName": "es-BO-SofiaNeural",
+      "locale": "es-BO",
+      "gender": "Female",
+      "displayName": "Bolivia - Sofia (femenina)",
+      "displayNameEn": "Bolivia - Sofia (female)"
+    },
+    {
+      "shortName": "es-CL-CatalinaNeural",
+      "locale": "es-CL",
+      "gender": "Female",
+      "displayName": "Chile - Catalina (femenina)",
+      "displayNameEn": "Chile - Catalina (female)"
+    },
+    {
+      "shortName": "es-CL-LorenzoNeural",
+      "locale": "es-CL",
+      "gender": "Male",
+      "displayName": "Chile - Lorenzo (masculina)",
+      "displayNameEn": "Chile - Lorenzo (male)"
+    },
+    {
+      "shortName": "es-CO-GonzaloNeural",
+      "locale": "es-CO",
+      "gender": "Male",
+      "displayName": "Colombia - Gonzalo (masculina)",
+      "displayNameEn": "Colombia - Gonzalo (male)"
+    },
+    {
+      "shortName": "es-CO-SalomeNeural",
+      "locale": "es-CO",
+      "gender": "Female",
+      "displayName": "Colombia - Salome (femenina)",
+      "displayNameEn": "Colombia - Salome (female)"
+    },
+    {
+      "shortName": "es-CR-JuanNeural",
+      "locale": "es-CR",
+      "gender": "Male",
+      "displayName": "Costa Rica - Juan (masculina)",
+      "displayNameEn": "Costa Rica - Juan (male)"
+    },
+    {
+      "shortName": "es-CR-MariaNeural",
+      "locale": "es-CR",
+      "gender": "Female",
+      "displayName": "Costa Rica - Maria (femenina)",
+      "displayNameEn": "Costa Rica - Maria (female)"
+    },
+    {
+      "shortName": "es-CU-BelkysNeural",
+      "locale": "es-CU",
+      "gender": "Female",
+      "displayName": "Cuba - Belkys (femenina)",
+      "displayNameEn": "Cuba - Belkys (female)"
+    },
+    {
+      "shortName": "es-CU-ManuelNeural",
+      "locale": "es-CU",
+      "gender": "Male",
+      "displayName": "Cuba - Manuel (masculina)",
+      "displayNameEn": "Cuba - Manuel (male)"
+    },
+    {
+      "shortName": "es-DO-EmilioNeural",
+      "locale": "es-DO",
+      "gender": "Male",
+      "displayName": "Rep?blica Dominicana - Emilio (masculina)",
+      "displayNameEn": "Dominican Republic - Emilio (male)"
+    },
+    {
+      "shortName": "es-DO-RamonaNeural",
+      "locale": "es-DO",
+      "gender": "Female",
+      "displayName": "Rep?blica Dominicana - Ramona (femenina)",
+      "displayNameEn": "Dominican Republic - Ramona (female)"
+    },
+    {
+      "shortName": "es-EC-AndreaNeural",
+      "locale": "es-EC",
+      "gender": "Female",
+      "displayName": "Ecuador - Andrea (femenina)",
+      "displayNameEn": "Ecuador - Andrea (female)"
+    },
+    {
+      "shortName": "es-EC-LuisNeural",
+      "locale": "es-EC",
+      "gender": "Male",
+      "displayName": "Ecuador - Luis (masculina)",
+      "displayNameEn": "Ecuador - Luis (male)"
+    },
+    {
+      "shortName": "es-ES-AlvaroNeural",
+      "locale": "es-ES",
+      "gender": "Male",
+      "displayName": "Espa?a - Alvaro (masculina)",
+      "displayNameEn": "Spain - Alvaro (male)"
+    },
+    {
+      "shortName": "es-ES-ElviraNeural",
+      "locale": "es-ES",
+      "gender": "Female",
+      "displayName": "Espa?a - Elvira (femenina)",
+      "displayNameEn": "Spain - Elvira (female)"
+    },
+    {
+      "shortName": "es-ES-ManuelEsCUNeural",
+      "locale": "es-ES",
+      "gender": "Male",
+      "displayName": "Espa?a - ManuelEsCU (masculina)",
+      "displayNameEn": "Spain - ManuelEsCU (male)"
+    },
+    {
+      "shortName": "es-GQ-JavierNeural",
+      "locale": "es-GQ",
+      "gender": "Male",
+      "displayName": "Guinea Ecuatorial - Javier (masculina)",
+      "displayNameEn": "Equatorial Guinea - Javier (male)"
+    },
+    {
+      "shortName": "es-GQ-TeresaNeural",
+      "locale": "es-GQ",
+      "gender": "Female",
+      "displayName": "Guinea Ecuatorial - Teresa (femenina)",
+      "displayNameEn": "Equatorial Guinea - Teresa (female)"
+    },
+    {
+      "shortName": "es-GT-AndresNeural",
+      "locale": "es-GT",
+      "gender": "Male",
+      "displayName": "Guatemala - Andres (masculina)",
+      "displayNameEn": "Guatemala - Andres (male)"
+    },
+    {
+      "shortName": "es-GT-MartaNeural",
+      "locale": "es-GT",
+      "gender": "Female",
+      "displayName": "Guatemala - Marta (femenina)",
+      "displayNameEn": "Guatemala - Marta (female)"
+    },
+    {
+      "shortName": "es-HN-CarlosNeural",
+      "locale": "es-HN",
+      "gender": "Male",
+      "displayName": "Honduras - Carlos (masculina)",
+      "displayNameEn": "Honduras - Carlos (male)"
+    },
+    {
+      "shortName": "es-HN-KarlaNeural",
+      "locale": "es-HN",
+      "gender": "Female",
+      "displayName": "Honduras - Karla (femenina)",
+      "displayNameEn": "Honduras - Karla (female)"
+    },
+    {
+      "shortName": "es-MX-DaliaNeural",
+      "locale": "es-MX",
+      "gender": "Female",
+      "displayName": "M?xico - Dalia (femenina)",
+      "displayNameEn": "Mexico - Dalia (female)"
+    },
+    {
+      "shortName": "es-MX-JorgeNeural",
+      "locale": "es-MX",
+      "gender": "Male",
+      "displayName": "M?xico - Jorge (masculina)",
+      "displayNameEn": "Mexico - Jorge (male)"
+    },
+    {
+      "shortName": "es-MX-LorenzoEsCLNeural",
+      "locale": "es-MX",
+      "gender": "Male",
+      "displayName": "M?xico - LorenzoEsCL (masculina)",
+      "displayNameEn": "Mexico - LorenzoEsCL (male)"
+    },
+    {
+      "shortName": "es-NI-FedericoNeural",
+      "locale": "es-NI",
+      "gender": "Male",
+      "displayName": "Nicaragua - Federico (masculina)",
+      "displayNameEn": "Nicaragua - Federico (male)"
+    },
+    {
+      "shortName": "es-NI-YolandaNeural",
+      "locale": "es-NI",
+      "gender": "Female",
+      "displayName": "Nicaragua - Yolanda (femenina)",
+      "displayNameEn": "Nicaragua - Yolanda (female)"
+    },
+    {
+      "shortName": "es-PA-MargaritaNeural",
+      "locale": "es-PA",
+      "gender": "Female",
+      "displayName": "Panam? - Margarita (femenina)",
+      "displayNameEn": "Panama - Margarita (female)"
+    },
+    {
+      "shortName": "es-PA-RobertoNeural",
+      "locale": "es-PA",
+      "gender": "Male",
+      "displayName": "Panam? - Roberto (masculina)",
+      "displayNameEn": "Panama - Roberto (male)"
+    },
+    {
+      "shortName": "es-PE-AlexNeural",
+      "locale": "es-PE",
+      "gender": "Male",
+      "displayName": "Per? - Alex (masculina)",
+      "displayNameEn": "Peru - Alex (male)"
+    },
+    {
+      "shortName": "es-PE-CamilaNeural",
+      "locale": "es-PE",
+      "gender": "Female",
+      "displayName": "Per? - Camila (femenina)",
+      "displayNameEn": "Peru - Camila (female)"
+    },
+    {
+      "shortName": "es-PR-KarinaNeural",
+      "locale": "es-PR",
+      "gender": "Female",
+      "displayName": "Puerto Rico - Karina (femenina)",
+      "displayNameEn": "Puerto Rico - Karina (female)"
+    },
+    {
+      "shortName": "es-PR-VictorNeural",
+      "locale": "es-PR",
+      "gender": "Male",
+      "displayName": "Puerto Rico - Victor (masculina)",
+      "displayNameEn": "Puerto Rico - Victor (male)"
+    },
+    {
+      "shortName": "es-PY-MarioNeural",
+      "locale": "es-PY",
+      "gender": "Male",
+      "displayName": "Paraguay - Mario (masculina)",
+      "displayNameEn": "Paraguay - Mario (male)"
+    },
+    {
+      "shortName": "es-PY-TaniaNeural",
+      "locale": "es-PY",
+      "gender": "Female",
+      "displayName": "Paraguay - Tania (femenina)",
+      "displayNameEn": "Paraguay - Tania (female)"
+    },
+    {
+      "shortName": "es-SV-LorenaNeural",
+      "locale": "es-SV",
+      "gender": "Female",
+      "displayName": "El Salvador - Lorena (femenina)",
+      "displayNameEn": "El Salvador - Lorena (female)"
+    },
+    {
+      "shortName": "es-SV-RodrigoNeural",
+      "locale": "es-SV",
+      "gender": "Male",
+      "displayName": "El Salvador - Rodrigo (masculina)",
+      "displayNameEn": "El Salvador - Rodrigo (male)"
+    },
+    {
+      "shortName": "es-US-AlonsoNeural",
+      "locale": "es-US",
+      "gender": "Male",
+      "displayName": "Estados Unidos - Alonso (masculina)",
+      "displayNameEn": "United States - Alonso (male)"
+    },
+    {
+      "shortName": "es-US-PalomaNeural",
+      "locale": "es-US",
+      "gender": "Female",
+      "displayName": "Estados Unidos - Paloma (femenina)",
+      "displayNameEn": "United States - Paloma (female)"
+    },
+    {
+      "shortName": "es-UY-MateoNeural",
+      "locale": "es-UY",
+      "gender": "Male",
+      "displayName": "Uruguay - Mateo (masculina)",
+      "displayNameEn": "Uruguay - Mateo (male)"
+    },
+    {
+      "shortName": "es-UY-ValentinaNeural",
+      "locale": "es-UY",
+      "gender": "Female",
+      "displayName": "Uruguay - Valentina (femenina)",
+      "displayNameEn": "Uruguay - Valentina (female)"
+    },
+    {
+      "shortName": "es-VE-PaolaNeural",
+      "locale": "es-VE",
+      "gender": "Female",
+      "displayName": "Venezuela - Paola (femenina)",
+      "displayNameEn": "Venezuela - Paola (female)"
+    },
+    {
+      "shortName": "es-VE-SebastianNeural",
+      "locale": "es-VE",
+      "gender": "Male",
+      "displayName": "Venezuela - Sebastian (masculina)",
+      "displayNameEn": "Venezuela - Sebastian (male)"
+    }
+  ],
+  "eng_Latn": [
+    {
+      "shortName": "en-AU-NatashaNeural",
+      "locale": "en-AU",
+      "gender": "Female",
+      "displayName": "Australia - Natasha (femenina)",
+      "displayNameEn": "Australia - Natasha (female)"
+    },
+    {
+      "shortName": "en-AU-WilliamNeural",
+      "locale": "en-AU",
+      "gender": "Male",
+      "displayName": "Australia - William (masculina)",
+      "displayNameEn": "Australia - William (male)"
+    },
+    {
+      "shortName": "en-CA-ClaraNeural",
+      "locale": "en-CA",
+      "gender": "Female",
+      "displayName": "Canad? - Clara (femenina)",
+      "displayNameEn": "Canada - Clara (female)"
+    },
+    {
+      "shortName": "en-CA-LiamNeural",
+      "locale": "en-CA",
+      "gender": "Male",
+      "displayName": "Canad? - Liam (masculina)",
+      "displayNameEn": "Canada - Liam (male)"
+    },
+    {
+      "shortName": "en-GB-LibbyNeural",
+      "locale": "en-GB",
+      "gender": "Female",
+      "displayName": "Reino Unido - Libby (femenina)",
+      "displayNameEn": "United Kingdom - Libby (female)"
+    },
+    {
+      "shortName": "en-GB-MaisieNeural",
+      "locale": "en-GB",
+      "gender": "Female",
+      "displayName": "Reino Unido - Maisie (femenina)",
+      "displayNameEn": "United Kingdom - Maisie (female)"
+    },
+    {
+      "shortName": "en-GB-RyanNeural",
+      "locale": "en-GB",
+      "gender": "Male",
+      "displayName": "Reino Unido - Ryan (masculina)",
+      "displayNameEn": "United Kingdom - Ryan (male)"
+    },
+    {
+      "shortName": "en-GB-SoniaNeural",
+      "locale": "en-GB",
+      "gender": "Female",
+      "displayName": "Reino Unido - Sonia (femenina)",
+      "displayNameEn": "United Kingdom - Sonia (female)"
+    },
+    {
+      "shortName": "en-GB-ThomasNeural",
+      "locale": "en-GB",
+      "gender": "Male",
+      "displayName": "Reino Unido - Thomas (masculina)",
+      "displayNameEn": "United Kingdom - Thomas (male)"
+    },
+    {
+      "shortName": "en-HK-SamNeural",
+      "locale": "en-HK",
+      "gender": "Male",
+      "displayName": "Hong Kong - Sam (masculina)",
+      "displayNameEn": "Hong Kong - Sam (male)"
+    },
+    {
+      "shortName": "en-HK-YanNeural",
+      "locale": "en-HK",
+      "gender": "Female",
+      "displayName": "Hong Kong - Yan (femenina)",
+      "displayNameEn": "Hong Kong - Yan (female)"
+    },
+    {
+      "shortName": "en-IE-ConnorNeural",
+      "locale": "en-IE",
+      "gender": "Male",
+      "displayName": "Irlanda - Connor (masculina)",
+      "displayNameEn": "Ireland - Connor (male)"
+    },
+    {
+      "shortName": "en-IE-EmilyNeural",
+      "locale": "en-IE",
+      "gender": "Female",
+      "displayName": "Irlanda - Emily (femenina)",
+      "displayNameEn": "Ireland - Emily (female)"
+    },
+    {
+      "shortName": "en-IN-NeerjaNeural",
+      "locale": "en-IN",
+      "gender": "Female",
+      "displayName": "India - Neerja (femenina)",
+      "displayNameEn": "India - Neerja (female)"
+    },
+    {
+      "shortName": "en-IN-PrabhatNeural",
+      "locale": "en-IN",
+      "gender": "Male",
+      "displayName": "India - Prabhat (masculina)",
+      "displayNameEn": "India - Prabhat (male)"
+    },
+    {
+      "shortName": "en-KE-AsiliaNeural",
+      "locale": "en-KE",
+      "gender": "Female",
+      "displayName": "Kenia - Asilia (femenina)",
+      "displayNameEn": "Kenya - Asilia (female)"
+    },
+    {
+      "shortName": "en-KE-ChilembaNeural",
+      "locale": "en-KE",
+      "gender": "Male",
+      "displayName": "Kenia - Chilemba (masculina)",
+      "displayNameEn": "Kenya - Chilemba (male)"
+    },
+    {
+      "shortName": "en-NG-AbeoNeural",
+      "locale": "en-NG",
+      "gender": "Male",
+      "displayName": "Nigeria - Abeo (masculina)",
+      "displayNameEn": "Nigeria - Abeo (male)"
+    },
+    {
+      "shortName": "en-NG-EzinneNeural",
+      "locale": "en-NG",
+      "gender": "Female",
+      "displayName": "Nigeria - Ezinne (femenina)",
+      "displayNameEn": "Nigeria - Ezinne (female)"
+    },
+    {
+      "shortName": "en-NZ-MitchellNeural",
+      "locale": "en-NZ",
+      "gender": "Male",
+      "displayName": "Nueva Zelanda - Mitchell (masculina)",
+      "displayNameEn": "New Zealand - Mitchell (male)"
+    },
+    {
+      "shortName": "en-NZ-MollyNeural",
+      "locale": "en-NZ",
+      "gender": "Female",
+      "displayName": "Nueva Zelanda - Molly (femenina)",
+      "displayNameEn": "New Zealand - Molly (female)"
+    },
+    {
+      "shortName": "en-PH-JamesNeural",
+      "locale": "en-PH",
+      "gender": "Male",
+      "displayName": "Filipinas - James (masculina)",
+      "displayNameEn": "Philippines - James (male)"
+    },
+    {
+      "shortName": "en-PH-RosaNeural",
+      "locale": "en-PH",
+      "gender": "Female",
+      "displayName": "Filipinas - Rosa (femenina)",
+      "displayNameEn": "Philippines - Rosa (female)"
+    },
+    {
+      "shortName": "en-SG-LunaNeural",
+      "locale": "en-SG",
+      "gender": "Female",
+      "displayName": "Singapur - Luna (femenina)",
+      "displayNameEn": "Singapore - Luna (female)"
+    },
+    {
+      "shortName": "en-SG-WayneNeural",
+      "locale": "en-SG",
+      "gender": "Male",
+      "displayName": "Singapur - Wayne (masculina)",
+      "displayNameEn": "Singapore - Wayne (male)"
+    },
+    {
+      "shortName": "en-TZ-ElimuNeural",
+      "locale": "en-TZ",
+      "gender": "Male",
+      "displayName": "Tanzania - Elimu (masculina)",
+      "displayNameEn": "Tanzania - Elimu (male)"
+    },
+    {
+      "shortName": "en-TZ-ImaniNeural",
+      "locale": "en-TZ",
+      "gender": "Female",
+      "displayName": "Tanzania - Imani (femenina)",
+      "displayNameEn": "Tanzania - Imani (female)"
+    },
+    {
+      "shortName": "en-US-AnaNeural",
+      "locale": "en-US",
+      "gender": "Female",
+      "displayName": "Estados Unidos - Ana (femenina)",
+      "displayNameEn": "United States - Ana (female)"
+    },
+    {
+      "shortName": "en-US-AriaNeural",
+      "locale": "en-US",
+      "gender": "Female",
+      "displayName": "Estados Unidos - Aria (femenina)",
+      "displayNameEn": "United States - Aria (female)"
+    },
+    {
+      "shortName": "en-US-ChristopherNeural",
+      "locale": "en-US",
+      "gender": "Male",
+      "displayName": "Estados Unidos - Christopher (masculina)",
+      "displayNameEn": "United States - Christopher (male)"
+    },
+    {
+      "shortName": "en-US-EricNeural",
+      "locale": "en-US",
+      "gender": "Male",
+      "displayName": "Estados Unidos - Eric (masculina)",
+      "displayNameEn": "United States - Eric (male)"
+    },
+    {
+      "shortName": "en-US-GuyNeural",
+      "locale": "en-US",
+      "gender": "Male",
+      "displayName": "Estados Unidos - Guy (masculina)",
+      "displayNameEn": "United States - Guy (male)"
+    },
+    {
+      "shortName": "en-US-JennyNeural",
+      "locale": "en-US",
+      "gender": "Female",
+      "displayName": "Estados Unidos - Jenny (femenina)",
+      "displayNameEn": "United States - Jenny (female)"
+    },
+    {
+      "shortName": "en-US-MichelleNeural",
+      "locale": "en-US",
+      "gender": "Female",
+      "displayName": "Estados Unidos - Michelle (femenina)",
+      "displayNameEn": "United States - Michelle (female)"
+    },
+    {
+      "shortName": "en-US-RogerNeural",
+      "locale": "en-US",
+      "gender": "Male",
+      "displayName": "Estados Unidos - Roger (masculina)",
+      "displayNameEn": "United States - Roger (male)"
+    },
+    {
+      "shortName": "en-US-SteffanNeural",
+      "locale": "en-US",
+      "gender": "Male",
+      "displayName": "Estados Unidos - Steffan (masculina)",
+      "displayNameEn": "United States - Steffan (male)"
+    },
+    {
+      "shortName": "en-ZA-LeahNeural",
+      "locale": "en-ZA",
+      "gender": "Female",
+      "displayName": "Sud?frica - Leah (femenina)",
+      "displayNameEn": "South Africa - Leah (female)"
+    },
+    {
+      "shortName": "en-ZA-LukeNeural",
+      "locale": "en-ZA",
+      "gender": "Male",
+      "displayName": "Sud?frica - Luke (masculina)",
+      "displayNameEn": "South Africa - Luke (male)"
+    }
+  ],
+  "fra_Latn": [
+    {
+      "shortName": "fr-BE-CharlineNeural",
+      "locale": "fr-BE",
+      "gender": "Female",
+      "displayName": "B?lgica - Charline (femenina)",
+      "displayNameEn": "Belgium - Charline (female)"
+    },
+    {
+      "shortName": "fr-BE-GerardNeural",
+      "locale": "fr-BE",
+      "gender": "Male",
+      "displayName": "B?lgica - Gerard (masculina)",
+      "displayNameEn": "Belgium - Gerard (male)"
+    },
+    {
+      "shortName": "fr-CA-AntoineNeural",
+      "locale": "fr-CA",
+      "gender": "Male",
+      "displayName": "Canad? - Antoine (masculina)",
+      "displayNameEn": "Canada - Antoine (male)"
+    },
+    {
+      "shortName": "fr-CA-JeanNeural",
+      "locale": "fr-CA",
+      "gender": "Male",
+      "displayName": "Canad? - Jean (masculina)",
+      "displayNameEn": "Canada - Jean (male)"
+    },
+    {
+      "shortName": "fr-CA-SylvieNeural",
+      "locale": "fr-CA",
+      "gender": "Female",
+      "displayName": "Canad? - Sylvie (femenina)",
+      "displayNameEn": "Canada - Sylvie (female)"
+    },
+    {
+      "shortName": "fr-CH-ArianeNeural",
+      "locale": "fr-CH",
+      "gender": "Female",
+      "displayName": "Suiza - Ariane (femenina)",
+      "displayNameEn": "Switzerland - Ariane (female)"
+    },
+    {
+      "shortName": "fr-CH-FabriceNeural",
+      "locale": "fr-CH",
+      "gender": "Male",
+      "displayName": "Suiza - Fabrice (masculina)",
+      "displayNameEn": "Switzerland - Fabrice (male)"
+    },
+    {
+      "shortName": "fr-FR-DeniseNeural",
+      "locale": "fr-FR",
+      "gender": "Female",
+      "displayName": "Francia - Denise (femenina)",
+      "displayNameEn": "France - Denise (female)"
+    },
+    {
+      "shortName": "fr-FR-EloiseNeural",
+      "locale": "fr-FR",
+      "gender": "Female",
+      "displayName": "Francia - Eloise (femenina)",
+      "displayNameEn": "France - Eloise (female)"
+    },
+    {
+      "shortName": "fr-FR-HenriNeural",
+      "locale": "fr-FR",
+      "gender": "Male",
+      "displayName": "Francia - Henri (masculina)",
+      "displayNameEn": "France - Henri (male)"
+    }
+  ],
+  "deu_Latn": [
+    {
+      "shortName": "de-AT-IngridNeural",
+      "locale": "de-AT",
+      "gender": "Female",
+      "displayName": "Austria - Ingrid (femenina)",
+      "displayNameEn": "Austria - Ingrid (female)"
+    },
+    {
+      "shortName": "de-AT-JonasNeural",
+      "locale": "de-AT",
+      "gender": "Male",
+      "displayName": "Austria - Jonas (masculina)",
+      "displayNameEn": "Austria - Jonas (male)"
+    },
+    {
+      "shortName": "de-CH-JanNeural",
+      "locale": "de-CH",
+      "gender": "Male",
+      "displayName": "Suiza - Jan (masculina)",
+      "displayNameEn": "Switzerland - Jan (male)"
+    },
+    {
+      "shortName": "de-CH-LeniNeural",
+      "locale": "de-CH",
+      "gender": "Female",
+      "displayName": "Suiza - Leni (femenina)",
+      "displayNameEn": "Switzerland - Leni (female)"
+    },
+    {
+      "shortName": "de-DE-AmalaNeural",
+      "locale": "de-DE",
+      "gender": "Female",
+      "displayName": "Alemania - Amala (femenina)",
+      "displayNameEn": "Germany - Amala (female)"
+    },
+    {
+      "shortName": "de-DE-ConradNeural",
+      "locale": "de-DE",
+      "gender": "Male",
+      "displayName": "Alemania - Conrad (masculina)",
+      "displayNameEn": "Germany - Conrad (male)"
+    },
+    {
+      "shortName": "de-DE-KatjaNeural",
+      "locale": "de-DE",
+      "gender": "Female",
+      "displayName": "Alemania - Katja (femenina)",
+      "displayNameEn": "Germany - Katja (female)"
+    },
+    {
+      "shortName": "de-DE-KillianNeural",
+      "locale": "de-DE",
+      "gender": "Male",
+      "displayName": "Alemania - Killian (masculina)",
+      "displayNameEn": "Germany - Killian (male)"
+    }
+  ],
+  "ita_Latn": [
+    {
+      "shortName": "it-IT-DiegoNeural",
+      "locale": "it-IT",
+      "gender": "Male",
+      "displayName": "Italia - Diego (masculina)",
+      "displayNameEn": "Italy - Diego (male)"
+    },
+    {
+      "shortName": "it-IT-ElsaNeural",
+      "locale": "it-IT",
+      "gender": "Female",
+      "displayName": "Italia - Elsa (femenina)",
+      "displayNameEn": "Italy - Elsa (female)"
+    },
+    {
+      "shortName": "it-IT-IsabellaNeural",
+      "locale": "it-IT",
+      "gender": "Female",
+      "displayName": "Italia - Isabella (femenina)",
+      "displayNameEn": "Italy - Isabella (female)"
+    }
+  ],
+  "por_Latn": [
+    {
+      "shortName": "pt-BR-AntonioNeural",
+      "locale": "pt-BR",
+      "gender": "Male",
+      "displayName": "Brasil - Antonio (masculina)",
+      "displayNameEn": "Brazil - Antonio (male)"
+    },
+    {
+      "shortName": "pt-BR-FranciscaNeural",
+      "locale": "pt-BR",
+      "gender": "Female",
+      "displayName": "Brasil - Francisca (femenina)",
+      "displayNameEn": "Brazil - Francisca (female)"
+    },
+    {
+      "shortName": "pt-PT-DuarteNeural",
+      "locale": "pt-PT",
+      "gender": "Male",
+      "displayName": "Portugal - Duarte (masculina)",
+      "displayNameEn": "Portugal - Duarte (male)"
+    },
+    {
+      "shortName": "pt-PT-RaquelNeural",
+      "locale": "pt-PT",
+      "gender": "Female",
+      "displayName": "Portugal - Raquel (femenina)",
+      "displayNameEn": "Portugal - Raquel (female)"
+    }
+  ]
+}

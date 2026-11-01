@@ -52,6 +52,12 @@ GET  /api/jobs/{jobId}/audio    descarga dubbed.mp3 al terminar
 La cola local ejecuta un trabajo GPU a la vez. Los trabajos se almacenan en
 memoria, por lo que se pierden si el proceso del backend se reinicia.
 
+La extensión incluye el catálogo `extension\voices.json` con las voces Edge
+TTS disponibles para español, inglés, francés, alemán, italiano y portugués.
+El selector de voz se filtra automáticamente según el idioma de destino y
+muestra nombres humanos con país, nombre y género. El identificador técnico
+`shortName` se conserva internamente para enviarlo a Edge TTS.
+
 ## Extensión
 
 1. Abre `chrome://extensions`, activa **Developer mode** y selecciona la
