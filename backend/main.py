@@ -31,7 +31,7 @@ def _preload() -> None:
     try:
         precargar_modelos(os.getenv("WHISPER_MODEL", "small"))
     except Exception:
-        logger.exception("No se pudieron precargar los modelos.")
+        logger.exception("No se pudieron precargar todos los modelos.")
 
 
 @app.on_event("startup")
@@ -47,7 +47,7 @@ class TranscribeRequest(BaseModel):
 
 
 class JobRequest(TranscribeRequest):
-    voice: str = "es-ES-ElviraNeural"
+    voice: str | None = None
 
 
 SUPPORTED_TRANSLATION_LANGUAGES = {
@@ -82,7 +82,7 @@ def create_job(request: JobRequest):
     ):
         raise HTTPException(status_code=400, detail="Idioma de traducción no permitido.")
     voice_prefix = VOICE_LANGUAGE_PREFIXES.get(request.targetLanguage)
-    if voice_prefix and not request.voice.startswith(voice_prefix):
+    if request.voice and voice_prefix and not request.voice.startswith(voice_prefix):
         raise HTTPException(
             status_code=400,
             detail="La voz seleccionada no corresponde al idioma de destino.",
@@ -91,7 +91,7 @@ def create_job(request: JobRequest):
         url=str(request.videoUrl),
         source_language=request.sourceLanguage,
         target_language=request.targetLanguage,
-        voice=request.voice,
+        voice=request.voice or None,
         model=request.model or os.getenv("WHISPER_MODEL", "small"),
     )
 

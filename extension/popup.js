@@ -1,26 +1,14 @@
 const message = document.getElementById("message");
 
-const VOICE_LANGUAGE_NAMES = {
-  spa_Latn: { es: "Español", en: "Spanish" },
-  eng_Latn: { es: "Inglés", en: "English" },
-  fra_Latn: { es: "Francés", en: "French" },
-  deu_Latn: { es: "Alemán", en: "German" },
-  ita_Latn: { es: "Italiano", en: "Italian" },
-  por_Latn: { es: "Portugués", en: "Portuguese" }
-};
-
 const UI_TEXT = {
   es: {
     title: "Traductor de YouTube",
     source: "Idioma del video",
     target: "Traducir a",
-    voice: "Voz",
+    autoVoice: "La voz se elige automáticamente según el hablante.",
     model: "Modelo Whisper local",
     start: "Procesar y traducir",
     stop: "Detener",
-    loading: "Cargando voces...",
-    noVoices: "No hay voces disponibles",
-    voicesError: "No se pudieron cargar las voces",
     openYoutube: "Abre primero un video de YouTube.",
     preparing: "Pausando el video y preparando la traducción...",
     ready: "Listo.",
@@ -31,13 +19,10 @@ const UI_TEXT = {
     title: "YouTube Translator",
     source: "Video language",
     target: "Translate to",
-    voice: "Voice",
+    autoVoice: "The voice is chosen automatically based on the speaker.",
     model: "Local Whisper model",
     start: "Process and translate",
     stop: "Stop",
-    loading: "Loading voices...",
-    noVoices: "No voices available",
-    voicesError: "Could not load voices",
     openYoutube: "Open a YouTube video first.",
     preparing: "Pausing the video and preparing the translation...",
     ready: "Ready.",
@@ -64,7 +49,6 @@ const MODEL_OPTIONS = {
 };
 
 let uiLanguage = localStorage.getItem("translate-video-ai-language") || "es";
-let voiceCatalog = null;
 
 function log(message, details) {
   console.log("[Translate Video AI][popup]", message, details || "");
@@ -80,14 +64,11 @@ function applyLanguage() {
   document.getElementById("title").textContent = labels.title;
   document.getElementById("sourceLanguageLabel").textContent = labels.source;
   document.getElementById("targetLanguageLabel").textContent = labels.target;
-  document.getElementById("voiceLabel").textContent = labels.voice;
+  document.getElementById("voiceHint").textContent = labels.autoVoice;
   document.getElementById("modelLabel").textContent = labels.model;
   document.getElementById("start").textContent = labels.start;
   document.getElementById("stop").textContent = labels.stop;
   document.getElementById("languageSwitch").textContent = uiLanguage === "es" ? "ES / EN" : "EN / ES";
-  if (!voiceCatalog) {
-    document.getElementById("voice").firstElementChild.textContent = labels.loading;
-  }
   for (const option of document.querySelectorAll("#sourceLanguage option, #targetLanguage option")) {
     option.textContent = LANGUAGE_OPTIONS[option.value][uiLanguage];
   }
@@ -96,60 +77,11 @@ function applyLanguage() {
   }
 }
 
-async function loadVoices() {
-  const response = await fetch(chrome.runtime.getURL("voices.json"));
-  if (!response.ok) {
-    throw new Error(`No se pudo cargar el catálogo de voces (HTTP ${response.status}).`);
-  }
-  return response.json();
-}
-
-function renderVoices(catalog, language) {
-  const voiceSelect = document.getElementById("voice");
-  const voices = catalog[language] || [];
-  voiceSelect.replaceChildren();
-  for (const voice of voices) {
-    const option = document.createElement("option");
-    option.value = voice.shortName;
-    const displayName = uiLanguage === "en"
-      ? voice.displayNameEn || voice.displayName
-      : voice.displayName;
-    option.textContent = `${VOICE_LANGUAGE_NAMES[language][uiLanguage]} - ${displayName || voice.shortName}`;
-    voiceSelect.appendChild(option);
-  }
-  voiceSelect.disabled = voices.length === 0;
-  if (!voices.length) {
-    voiceSelect.appendChild(new Option(text().noVoices, ""));
-  }
-}
-
-const voicesReady = loadVoices()
-  .then((catalog) => {
-    voiceCatalog = catalog;
-    const targetLanguage = document.getElementById("targetLanguage");
-    renderVoices(catalog, targetLanguage.value);
-    targetLanguage.addEventListener("change", () => {
-      renderVoices(catalog, targetLanguage.value);
-    });
-    return catalog;
-  })
-  .catch((error) => {
-    console.error("[Translate Video AI][popup] Error cargando voces.", error);
-    document.getElementById("voice").replaceChildren(
-      new Option(text().voicesError, "")
-    );
-    message.textContent = `${text().error}: ${error.message}`;
-    throw error;
-  });
-
 applyLanguage();
 document.getElementById("languageSwitch").addEventListener("click", () => {
   uiLanguage = uiLanguage === "es" ? "en" : "es";
   localStorage.setItem("translate-video-ai-language", uiLanguage);
   applyLanguage();
-  if (voiceCatalog) {
-    renderVoices(voiceCatalog, document.getElementById("targetLanguage").value);
-  }
 });
 
 document.getElementById("start").addEventListener("click", async () => {
@@ -163,13 +95,11 @@ document.getElementById("start").addEventListener("click", async () => {
 
   message.textContent = text().preparing;
   try {
-    await voicesReady;
     const request = {
       action: "startTranslation",
       tabId: tab.id,
       sourceLanguage: document.getElementById("sourceLanguage").value,
       targetLanguage: document.getElementById("targetLanguage").value,
-      voice: document.getElementById("voice").value,
       model: document.getElementById("model").value
     };
     log("Enviando solicitud al background.", request);

@@ -51,7 +51,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function startTranslation({ tabId, sourceLanguage, targetLanguage, voice, model }) {
+async function startTranslation({ tabId, sourceLanguage, targetLanguage, model }) {
   if (!tabId || !sourceLanguage || !targetLanguage) {
     throw new Error("Faltan la pestaña o los idiomas.");
   }
@@ -88,8 +88,7 @@ async function startTranslation({ tabId, sourceLanguage, targetLanguage, voice, 
           videoUrl: preparation.url,
           model: model || "base",
           sourceLanguage,
-          targetLanguage,
-          voice
+          targetLanguage
         })
       });
     } catch (error) {

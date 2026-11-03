@@ -14,8 +14,10 @@ from .pipeline import procesar_video
 logger = logging.getLogger("translate-video-ai.jobs")
 
 RANGES = {
-    "download": (0.0, 0.08), "transcription": (0.08, 0.30), "translation": (0.30, 0.40),
-    "tts": (0.40, 0.65), "separation": (0.65, 0.90), "mixing": (0.90, 1.0),
+    "download": (0.0, 0.08), "transcription": (0.08, 0.30),
+    "diarization": (0.30, 0.36), "voices": (0.36, 0.38),
+    "translation": (0.38, 0.46), "tts": (0.46, 0.68),
+    "separation": (0.68, 0.90), "mixing": (0.90, 1.0),
 }
 
 
@@ -36,7 +38,7 @@ class JobManager:
         url: str,
         source_language: str,
         target_language: str,
-        voice: str,
+        voice: str | None,
         model: str,
     ) -> dict:
         job_id = uuid4().hex
@@ -107,7 +109,7 @@ class JobManager:
         url: str,
         source_language: str,
         target_language: str,
-        voice: str,
+        voice: str | None,
         model: str,
     ) -> None:
         output_dir = self._root / job_id
@@ -145,7 +147,6 @@ class JobManager:
             )
             logger.info("Job completado: id=%s audio=%s", job_id, audio_path)
         except Exception as error:
-                        
             logger.exception("Job fallido: id=%s", job_id)
             shutil.rmtree(output_dir, ignore_errors=True)
             self._update(job_id, status="failed", stage="failed", error=str(error))

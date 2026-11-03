@@ -4,7 +4,12 @@ yt-dlp
 faster-whisper==1.2.1
 av==16.1.0
 transformers
-torch
+torch==2.11.0
+torchaudio==2.11.0
+torchcodec==0.17.0
+pyannote.audio==4.0.7
+# 3.x exige torch>=2.14; fijamos 2.9.0 para no romper el stack CUDA actual.
+pytorch-metric-learning==2.9.0
 sentencepiece
 edge-tts
 demucs

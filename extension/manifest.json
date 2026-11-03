@@ -1,16 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Translate Video AI",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Transcribe y traduce videos de YouTube con inteligencia artificial.",
   "permissions": [],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://youtube.com/*",
     "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*",
-    "https://*.railway.app/*",
-    "https://*.up.railway.app/*"
+    "http://127.0.0.1:8000/*"
   ],
   "background": {
     "service_worker": "background.js"

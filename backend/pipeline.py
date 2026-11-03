@@ -15,6 +15,9 @@ from typing import Callable
 import importlib.util
 
 import numpy as np
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger("translate-video-ai.pipeline")
 
@@ -60,7 +63,72 @@ DEFAULT_TTS_VOICES = {
     "pt-BR": "pt-BR-FranciscaNeural",
     "it-IT": "it-IT-ElsaNeural"
 }
+# Voces por idioma y género. Se usan en orden para que dos hablantes del
+# mismo género no compartan la misma voz.
+TTS_VOICE_POOLS = {
+    "spa_Latn": {
+        "male": ["es-ES-AlvaroNeural", "es-MX-JorgeNeural", "es-AR-TomasNeural"],
+        "female": ["es-ES-ElviraNeural", "es-MX-DaliaNeural", "es-AR-ElenaNeural"],
+    },
+    "eng_Latn": {
+        "male": ["en-US-GuyNeural", "en-US-ChristopherNeural", "en-GB-RyanNeural"],
+        "female": ["en-US-JennyNeural", "en-US-AriaNeural", "en-GB-SoniaNeural"],
+    },
+    "fra_Latn": {
+        "male": ["fr-FR-HenriNeural", "fr-CA-AntoineNeural"],
+        "female": ["fr-FR-DeniseNeural", "fr-CA-SylvieNeural"],
+    },
+    "deu_Latn": {
+        "male": ["de-DE-ConradNeural", "de-AT-JonasNeural"],
+        "female": ["de-DE-KatjaNeural", "de-AT-IngridNeural"],
+    },
+    "ita_Latn": {
+        "male": ["it-IT-DiegoNeural"],
+        "female": ["it-IT-ElsaNeural", "it-IT-IsabellaNeural"],
+    },
+    "por_Latn": {
+        "male": ["pt-BR-AntonioNeural", "pt-PT-DuarteNeural"],
+        "female": ["pt-BR-FranciscaNeural", "pt-PT-RaquelNeural"],
+    },
+    "jpn_Jpan": {
+        "male": ["ja-JP-KeitaNeural"],
+        "female": ["ja-JP-NanamiNeural"],
+    },
+    "kor_Hang": {
+        "male": ["ko-KR-InJoonNeural"],
+        "female": ["ko-KR-SunHiNeural"],
+    },
+}
+# Voz por defecto de cada idioma y género (primera del pool).
+AUTO_TTS_VOICES = {
+    language: {gender: voices[0] for gender, voices in pools.items()}
+    for language, pools in TTS_VOICE_POOLS.items()
+}
+FALLBACK_TTS_VOICE = "es-ES-ElviraNeural"
+MALE_PITCH_THRESHOLD_HZ = float(os.getenv("VOICE_PITCH_THRESHOLD", "155"))
+DEFAULT_DIARIZATION_MODEL = os.getenv(
+    "PYANNOTE_MODEL", "pyannote/speaker-diarization-community-1"
+)
+LEGACY_DIARIZATION_MODEL = "pyannote/speaker-diarization-3.1"
+# Clasificador de género que se aplica al audio de cada hablante ya separado
+# por pyannote. Usamos el modelo multilingüe de XLS-R, más robusto que el
+# clasificador pequeño anterior, sobre todo con voces mayores o con acento.
+DEFAULT_GENDER_MODEL = os.getenv(
+    "GENDER_MODEL",
+    "alefiury/wav2vec2-large-xlsr-53-gender-recognition-librispeech",
+)
+GENDER_SAMPLE_RATE = 16000
+GENDER_MAX_SECONDS = float(os.getenv("GENDER_MAX_SECONDS", "40"))
+GENDER_WINDOW_SECONDS = float(os.getenv("GENDER_WINDOW_SECONDS", "5"))
+# Ajustes del reetiquetado de turnos por embeddings de hablante.
+TURN_EMBEDDING_MIN_SECONDS = float(os.getenv("DIARIZATION_MIN_TURN_SECONDS", "0.4"))
+TURN_RELABEL_MARGIN = float(os.getenv("DIARIZATION_RELABEL_MARGIN", "0.05"))
+TURN_MERGE_GAP_SECONDS = float(os.getenv("DIARIZATION_MERGE_GAP", "0.4"))
+TURN_INHERIT_MAX_SECONDS = float(os.getenv("DIARIZATION_INHERIT_MAX", "2.0"))
+# Duración mínima de un trozo de palabra para conservar un cambio de hablante.
+MIN_SPEAKER_RUN_SECONDS = float(os.getenv("MIN_SPEAKER_RUN_SECONDS", "0.25"))
 ProgressCallback = Callable[[str, float], None]
+
 
 
 def _ffmpeg_command() -> str:
@@ -126,6 +194,19 @@ def _read_wav(path: Path) -> tuple[np.ndarray, int]:
     return data, rate
 
 
+def _read_wav_mono(path: Path) -> tuple[np.ndarray, int]:
+    with wave.open(str(path), "rb") as audio:
+        channels = audio.getnchannels()
+        width = audio.getsampwidth()
+        rate = audio.getframerate()
+        if width != 2:
+            raise ValueError(f"Se esperaba WAV de 16 bits, llegó {width * 8} bits.")
+        raw = np.frombuffer(audio.readframes(audio.getnframes()), dtype=np.int16)
+    data = raw.reshape(-1, channels).astype(np.float32)
+    mono = data.mean(axis=1, dtype=np.float32) / 32768.0
+    return mono, rate
+
+
 def _write_wav(path: Path, data: np.ndarray) -> None:
     pcm = (np.clip(data, -1.0, 1.0) * 32767.0).astype(np.int16)
     with wave.open(str(path), "wb") as audio:
@@ -166,6 +247,609 @@ def _get_demucs_model():
 
     logger.info("Cargando Demucs.")
     return get_model("htdemucs")
+
+
+@lru_cache(maxsize=1)
+def _get_gender_model(device: str):
+    """Load the pretrained voice-gender classifier once and keep it in memory."""
+    from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+
+    model_name = DEFAULT_GENDER_MODEL
+    logger.info("Cargando clasificador de género: %s", model_name)
+    extractor = AutoFeatureExtractor.from_pretrained(model_name)
+    model = AutoModelForAudioClassification.from_pretrained(model_name)
+    model = model.to(device).eval()
+    logger.info("Clasificador de género listo: %s", model_name)
+    return extractor, model, model.config.id2label
+
+
+def _release_gender_model() -> None:
+    """Free the gender classifier before loading NLLB/Demucs.
+
+    The XLS-R classifier is large and is only needed once per job. Keeping it
+    cached while translation and separation run can exhaust 8 GB GPUs.
+    """
+    if _get_gender_model.cache_info().currsize:
+        _get_gender_model.cache_clear()
+        _free_gpu()
+
+
+
+def _huggingface_token() -> str | None:
+    return (
+        os.getenv("HUGGINGFACE_API_TOKEN")
+        or os.getenv("HF_TOKEN")
+        or os.getenv("HUGGINGFACE_HUB_TOKEN")
+    )
+
+
+@lru_cache(maxsize=1)
+def _get_diarization_pipeline(device: str):
+    """Load the pyannote diarization pipeline once and keep it in memory."""
+    import torch
+    from pyannote.audio import Pipeline
+
+    token = _huggingface_token()
+    if not token:
+        raise RuntimeError(
+            "Falta HUGGINGFACE_API_TOKEN en .env para usar pyannote.audio."
+        )
+
+    models = [DEFAULT_DIARIZATION_MODEL]
+    if LEGACY_DIARIZATION_MODEL not in models:
+        models.append(LEGACY_DIARIZATION_MODEL)
+
+    last_error: Exception | None = None
+    for model_name in models:
+        try:
+            logger.info("Cargando modelo de diarización: %s", model_name)
+            pipeline = Pipeline.from_pretrained(model_name, token=token)
+            pipeline.to(torch.device(device))
+            logger.info("Modelo de diarización listo: %s", model_name)
+            return pipeline, model_name
+        except Exception as error:  # gated repo, red, versión incompatible...
+            last_error = error
+            logger.warning(
+                "No se pudo cargar %s: %s: %s",
+                model_name,
+                type(error).__name__,
+                str(error).splitlines()[0][:300],
+            )
+
+    raise RuntimeError(
+        "No se pudo cargar ningún modelo de diarización de pyannote. "
+        "Acepta las condiciones en "
+        f"https://hf.co/{DEFAULT_DIARIZATION_MODEL}, "
+        "https://hf.co/pyannote/segmentation-3.0 y comprueba el token."
+    ) from last_error
+
+
+def _diarize(wav_path: Path, device: str) -> list[dict] | None:
+    """Return speaker turns sorted by time, or ``None`` if pyannote fails.
+
+    The audio is passed in memory as ``{"waveform", "sample_rate"}`` so the
+    pipeline does not need torchcodec/FFmpeg to decode the WAV file.
+    """
+    try:
+        import torch
+
+        pipeline, model_name = _get_diarization_pipeline(device)
+        audio, rate = _read_wav_mono(wav_path)
+        waveform = torch.from_numpy(audio).unsqueeze(0)
+        logger.info(
+            "Diarizando %.1fs de audio con %s (%s).",
+            len(audio) / rate,
+            model_name,
+            device,
+        )
+        with torch.inference_mode():
+            kwargs = {}
+            if os.getenv("PYANNOTE_MIN_SPEAKERS"):
+                kwargs["min_speakers"] = int(os.environ["PYANNOTE_MIN_SPEAKERS"])
+            if os.getenv("PYANNOTE_MAX_SPEAKERS"):
+                kwargs["max_speakers"] = int(os.environ["PYANNOTE_MAX_SPEAKERS"])
+            output = pipeline({"waveform": waveform, "sample_rate": rate}, **kwargs)
+        annotation = getattr(output, "exclusive_speaker_diarization", output)
+        turns = [
+            {
+                "start": float(turn.start),
+                "end": float(turn.end),
+                "speaker": str(speaker),
+            }
+            for turn, _, speaker in annotation.itertracks(yield_label=True)
+        ]
+        del audio, waveform
+    except Exception as error:
+        logger.warning(
+            "Diarización con pyannote falló (%s: %s); se usará la detección de "
+            "tono por segmento.",
+            type(error).__name__,
+            str(error).splitlines()[0][:300],
+        )
+        return None
+
+    if not turns:
+        logger.warning("pyannote no devolvió ningún turno de habla.")
+        return None
+    speakers = sorted({turn["speaker"] for turn in turns})
+    logger.info(
+        "Diarización completada: %d hablante(s) %s en %d turno(s).",
+        len(speakers),
+        ", ".join(speakers),
+        len(turns),
+    )
+    return turns
+
+
+def _turn_speaker_at(seconds: float, turns: list[dict]) -> str | None:
+    """Return the speaker whose turn contains ``seconds``."""
+    for turn in turns:
+        if turn["start"] <= seconds <= turn["end"]:
+            return turn["speaker"]
+    return None
+
+
+def _turn_speaker_for_span(start: float, end: float, turns: list[dict]) -> str | None:
+    """Return the speaker with the largest overlap with ``[start, end]``."""
+    best_speaker, best_overlap = None, 0.0
+    for turn in turns:
+        overlap = min(end, turn["end"]) - max(start, turn["start"])
+        if overlap > best_overlap:
+            best_speaker, best_overlap = turn["speaker"], overlap
+    return best_speaker
+
+
+def _relabel_turns(turns: list[dict], wav_path: Path, device: str) -> list[dict]:
+    """Re-label pyannote turns using pyannote's own speaker embeddings.
+
+    Diarization can emit very short turns with inconsistent labels, especially
+    for soft or older voices. We anchor each speaker on its longest turns and
+    reassign every other turn by cosine similarity. Short or ambiguous turns
+    inherit the nearest reliable turn. Finally, adjacent turns of the same
+    speaker separated by a small gap are merged.
+    """
+    if len({turn["speaker"] for turn in turns}) < 2:
+        return turns
+
+    try:
+        import torch
+        import torchaudio.functional as F
+
+        pipeline, _ = _get_diarization_pipeline(device)
+        embedding_model = getattr(pipeline, "_embedding", None)
+        if embedding_model is None:
+            logger.info("pyannote no expone embeddings; se conservan sus turnos.")
+            return turns
+        audio, rate = _read_wav_mono(wav_path)
+    except Exception as error:  # modelo no disponible, memoria, etc.
+        logger.warning(
+            "No se pudo preparar el reetiquetado por embeddings (%s: %s); "
+            "se conservan los turnos de pyannote.",
+            type(error).__name__,
+            str(error).splitlines()[0][:300],
+        )
+        return turns
+
+    labels = sorted({turn["speaker"] for turn in turns})
+    embeddings: dict[int, np.ndarray | None] = {}
+    for index, turn in enumerate(turns):
+        duration = turn["end"] - turn["start"]
+        start = max(0, int(turn["start"] * rate))
+        end = min(len(audio), int(turn["end"] * rate))
+        if duration < TURN_EMBEDDING_MIN_SECONDS or end <= start:
+            embeddings[index] = None
+            continue
+        tensor = torch.from_numpy(audio[start:end]).unsqueeze(0)
+        if rate != GENDER_SAMPLE_RATE:
+            tensor = F.resample(tensor, rate, GENDER_SAMPLE_RATE)
+        try:
+            with torch.inference_mode():
+                vector = np.asarray(embedding_model(tensor.unsqueeze(0))[0]).ravel()
+        except Exception as error:
+            logger.warning(
+                "No se pudo calcular el embedding del turno %.2f-%.2f (%s: %s).",
+                turn["start"],
+                turn["end"],
+                type(error).__name__,
+                str(error).splitlines()[0][:200],
+            )
+            embeddings[index] = None
+            continue
+        embeddings[index] = vector / (np.linalg.norm(vector) + 1e-9)
+
+    # Referencia de cada hablante: sus turnos más largos (hasta 20 s).
+    references: dict[str, np.ndarray] = {}
+    for label in labels:
+        items = sorted(
+            (
+                (embeddings[index], turn["end"] - turn["start"])
+                for index, turn in enumerate(turns)
+                if turn["speaker"] == label and embeddings.get(index) is not None
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        selected: list[np.ndarray] = []
+        total = 0.0
+        for vector, duration in items:
+            selected.append(vector)
+            total += duration
+            if total >= 20.0 or len(selected) >= 8:
+                break
+        if selected:
+            mean = np.mean(selected, axis=0)
+            references[label] = mean / (np.linalg.norm(mean) + 1e-9)
+
+    if len(references) < 2:
+        logger.info("No hay suficientes turnos largos para reetiquetar hablantes.")
+        return turns
+
+    final_labels: dict[int, str] = {}
+    reliable: list[int] = []
+    changed = 0
+    for index, turn in enumerate(turns):
+        vector = embeddings.get(index)
+        if vector is None:
+            continue
+        scores = {
+            label: float(np.dot(vector, reference))
+            for label, reference in references.items()
+        }
+        ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        best, top = ordered[0]
+        margin = top - ordered[1][1] if len(ordered) > 1 else 1.0
+        if margin >= TURN_RELABEL_MARGIN:
+            final_labels[index] = best
+            reliable.append(index)
+            if best != turn["speaker"]:
+                changed += 1
+
+    if not reliable:
+        logger.info("Los embeddings no separaron con claridad; se conservan los turnos.")
+        return turns
+
+    for index, turn in enumerate(turns):
+        if index in final_labels:
+            continue
+        middle = (turn["start"] + turn["end"]) / 2.0
+        nearest_index, nearest_distance = None, float("inf")
+        for other_index in reliable:
+            other = turns[other_index]
+            if other["start"] <= middle <= other["end"]:
+                distance = 0.0
+            else:
+                distance = min(
+                    abs(middle - other["start"]), abs(middle - other["end"])
+                )
+            if distance < nearest_distance:
+                nearest_index, nearest_distance = other_index, distance
+        if nearest_index is not None and nearest_distance <= TURN_INHERIT_MAX_SECONDS:
+            final_labels[index] = final_labels[nearest_index]
+        else:
+            final_labels[index] = turn["speaker"]
+
+    merged: list[dict] = []
+    for index in sorted(range(len(turns)), key=lambda item: turns[item]["start"]):
+        speaker = final_labels[index]
+        start, end = turns[index]["start"], turns[index]["end"]
+        if (
+            merged
+            and merged[-1]["speaker"] == speaker
+            and start - merged[-1]["end"] <= TURN_MERGE_GAP_SECONDS
+        ):
+            merged[-1]["end"] = max(merged[-1]["end"], end)
+        else:
+            merged.append({"start": start, "end": end, "speaker": speaker})
+
+    logger.info(
+        "Turnos reetiquetados por embeddings: %d/%d corregidos, %d -> %d turnos.",
+        changed,
+        len(turns),
+        len(turns),
+        len(merged),
+    )
+    return merged
+
+
+def _classify_speaker_genders(
+    wav_path: Path,
+    turns: list[dict],
+    device: str,
+) -> dict[str, str]:
+    """Classify male/female for every diarized speaker using its own audio.
+
+    This runs *after* pyannote has separated the speakers. For each speaker we
+    concatenate the longest turns (up to ``GENDER_MAX_SECONDS``) and classify
+    them in windows, so the prediction is based on a single clean voice instead
+    of guessing from short, possibly mixed, segments.
+    """
+    if not turns:
+        return {}
+
+    try:
+        import torch
+        import torchaudio.functional as F
+
+        extractor, model, labels = _get_gender_model(device)
+        audio, rate = _read_wav_mono(wav_path)
+    except Exception as error:
+        logger.warning(
+            "No se pudo cargar el clasificador de género (%s: %s); "
+            "se usará el tono por segmento.",
+            type(error).__name__,
+            str(error).splitlines()[0][:300],
+        )
+        return {}
+
+    label_items = sorted(labels.items())
+    position_by_label = {
+        str(name).lower(): position for position, (_, name) in enumerate(label_items)
+    }
+    female_index = position_by_label.get("female")
+    male_index = position_by_label.get("male")
+    if female_index is None or male_index is None:
+        logger.warning("El clasificador de género no expone female/male: %s", labels)
+        return {}
+
+    by_speaker: dict[str, list[dict]] = {}
+    for turn in turns:
+        by_speaker.setdefault(turn["speaker"], []).append(turn)
+
+    window_size = max(1, int(GENDER_SAMPLE_RATE * GENDER_WINDOW_SECONDS))
+    minimum = max(1, int(GENDER_SAMPLE_RATE * 0.5))
+    result: dict[str, str] = {}
+    for speaker, items in sorted(by_speaker.items()):
+        ordered = sorted(items, key=lambda turn: turn["end"] - turn["start"], reverse=True)
+        chunks: list[np.ndarray] = []
+        total = 0.0
+        for turn in ordered:
+            start = max(0, int(turn["start"] * rate))
+            end = min(len(audio), int(turn["end"] * rate))
+            if end - start < rate // 2:
+                continue
+            chunks.append(audio[start:end])
+            total += (end - start) / rate
+            if total >= GENDER_MAX_SECONDS:
+                break
+        if not chunks:
+            logger.info(
+                "Hablante %s sin audio suficiente para clasificar género.", speaker
+            )
+            continue
+
+        samples = np.concatenate(chunks)
+        if rate != GENDER_SAMPLE_RATE:
+            samples = F.resample(
+                torch.from_numpy(samples), rate, GENDER_SAMPLE_RATE
+            ).numpy()
+        probabilities = np.zeros(len(label_items), dtype=np.float64)
+        used = 0.0
+        for start in range(0, max(1, len(samples) - window_size + 1), window_size):
+            chunk = samples[start:start + window_size]
+            if len(chunk) < minimum:
+                continue
+            inputs = extractor(
+                chunk, sampling_rate=GENDER_SAMPLE_RATE, return_tensors="pt"
+            )
+            inputs = {key: value.to(device) for key, value in inputs.items()}
+            with torch.inference_mode():
+                batch = torch.softmax(model(**inputs).logits, dim=-1)[0].cpu().numpy()
+            weight = len(chunk) / GENDER_SAMPLE_RATE
+            probabilities += batch * weight
+            used += weight
+        if used <= 0:
+            continue
+        probabilities /= used
+        gender = (
+            "female"
+            if probabilities[female_index] >= probabilities[male_index]
+            else "male"
+        )
+        result[speaker] = gender
+        detail = ", ".join(
+            f"{name}={probabilities[position]:.3f}"
+            for position, (_, name) in enumerate(label_items)
+        )
+        logger.info(
+            "Hablante %s -> %s (%s, %.1fs clasificados)",
+            speaker,
+            gender,
+            detail,
+            used,
+        )
+
+    del audio
+    return result
+
+
+def _assign_speakers(segments: list[dict], turns: list[dict]) -> None:
+    """Attach to each Whisper segment the pyannote speaker with most overlap."""
+    for segment in segments:
+        start, end = segment["start"], segment["end"]
+        best_speaker: str | None = None
+        best_overlap = 0.0
+        for turn in turns:
+            overlap = min(end, turn["end"]) - max(start, turn["start"])
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_speaker = turn["speaker"]
+        segment["speaker"] = best_speaker
+
+    # Segments between turns (or without overlap) take the nearest one.
+    known = sorted(
+        (index for index, segment in enumerate(segments) if segment.get("speaker")),
+        key=lambda index: segments[index]["start"],
+    )
+    if not known:
+        for segment in segments:
+            segment["speaker"] = turns[0]["speaker"]
+        return
+    for index, segment in enumerate(segments):
+        if segment.get("speaker"):
+            continue
+        middle = (segment["start"] + segment["end"]) / 2
+        nearest = min(
+            known,
+            key=lambda other: abs(
+                (segments[other]["start"] + segments[other]["end"]) / 2 - middle
+            ),
+        )
+        segment["speaker"] = segments[nearest]["speaker"]
+
+
+def _consolidate_runs(runs: list[dict]) -> list[dict]:
+    """Join adjacent word runs that ended up with the same speaker."""
+    result: list[dict] = []
+    for run in runs:
+        if result and result[-1]["speaker"] == run["speaker"]:
+            result[-1]["words"].extend(run["words"])
+        else:
+            result.append(run)
+    return result
+
+
+def _smooth_short_runs(runs: list[dict], min_seconds: float) -> list[dict]:
+    """Merge word runs shorter than ``min_seconds`` into a neighbouring run.
+
+    A single spurious word at a turn boundary should not switch the TTS voice
+    in the middle of a sentence. Genuine short interjections (e.g. a 0.4 s
+    "Yeah") are longer than the default 0.25 s and are preserved.
+    """
+    while len(runs) > 1:
+        merged = False
+        for index, run in enumerate(runs):
+            start = run["words"][0]["start"]
+            end = run["words"][-1]["end"]
+            if end - start >= min_seconds:
+                continue
+            previous = runs[index - 1] if index > 0 else None
+            following = runs[index + 1] if index + 1 < len(runs) else None
+            if previous is None and following is None:
+                break
+            if previous is not None and (
+                following is None
+                or len(previous["words"]) >= len(following["words"])
+            ):
+                previous["words"].extend(run["words"])
+            else:
+                following["words"][:0] = run["words"]
+            runs.pop(index)
+            merged = True
+            break
+        if not merged:
+            break
+    return _consolidate_runs(runs)
+
+
+def _split_segments_by_speaker(
+    segments: list[dict],
+    turns: list[dict],
+) -> list[dict]:
+    """Split Whisper segments at pyannote turn boundaries.
+
+    Whisper often returns long segments that contain several speakers. Without
+    this step the whole segment gets a single voice, which is exactly what made
+    a female voice read both sides of a conversation. Word timestamps let us
+    cut the segment where the diarized speaker changes.
+    """
+    if not turns:
+        return segments
+
+    result: list[dict] = []
+    for segment in segments:
+        words = segment.get("words") or []
+        if len(words) < 2:
+            result.append(
+                {key: value for key, value in segment.items() if key != "words"}
+            )
+            continue
+
+        runs: list[dict] = []
+        for word in words:
+            middle = (word["start"] + word["end"]) / 2.0
+            speaker = _turn_speaker_at(middle, turns)
+            if speaker is None:
+                speaker = _turn_speaker_for_span(word["start"], word["end"], turns)
+            if speaker is None:
+                speaker = runs[-1]["speaker"] if runs else segment.get("speaker")
+            if not runs or runs[-1]["speaker"] != speaker:
+                runs.append({"speaker": speaker, "words": [word]})
+            else:
+                runs[-1]["words"].append(word)
+
+        runs = _smooth_short_runs(runs, MIN_SPEAKER_RUN_SECONDS)
+        if len(runs) <= 1:
+            item = {key: value for key, value in segment.items() if key != "words"}
+            if runs and runs[0]["speaker"]:
+                item["speaker"] = runs[0]["speaker"]
+            result.append(item)
+            continue
+
+        for run in runs:
+            text = "".join(word["word"] for word in run["words"]).strip()
+            if not text:
+                continue
+            result.append(
+                {
+                    "start": float(run["words"][0]["start"]),
+                    "end": float(run["words"][-1]["end"]),
+                    "text": text,
+                    "speaker": run["speaker"],
+                }
+            )
+
+    logger.info(
+        "Segmentos partidos por hablante: %d -> %d subsegmentos.",
+        len(segments),
+        len(result),
+    )
+    return result
+
+
+def _apply_gender_map(
+    segments: list[dict],
+    speaker_genders: dict[str, str],
+) -> None:
+    """Apply one gender per diarized speaker to all of its segments."""
+    for segment in segments:
+        gender = speaker_genders.get(segment.get("speaker"))
+        if gender:
+            segment["gender"] = gender
+
+
+def _apply_speaker_genders(segments: list[dict]) -> dict[str, str]:
+    """Replace per-segment genders with one gender per diarized speaker."""
+    pitches: dict[str, list[float]] = {}
+    segment_genders: dict[str, list[str]] = {}
+    for segment in segments:
+        speaker = segment.get("speaker")
+        if not speaker:
+            continue
+        if segment.get("pitch_hz"):
+            pitches.setdefault(speaker, []).append(segment["pitch_hz"])
+        if segment.get("gender"):
+            segment_genders.setdefault(speaker, []).append(segment["gender"])
+
+    speakers = sorted({segment["speaker"] for segment in segments if segment.get("speaker")})
+    speaker_genders: dict[str, str] = {}
+    for speaker in speakers:
+        values = pitches.get(speaker) or []
+        if values:
+            median = float(np.median(values))
+            gender = "male" if median < MALE_PITCH_THRESHOLD_HZ else "female"
+            detail = f"pitch_mediana={median:.1f}Hz"
+        else:
+            genders = segment_genders.get(speaker) or []
+            gender = max(set(genders), key=genders.count) if genders else "female"
+            detail = "sin_pitch"
+        speaker_genders[speaker] = gender
+        logger.info("Hablante %s -> %s (%s)", speaker, gender, detail)
+
+    for segment in segments:
+        gender = speaker_genders.get(segment.get("speaker"))
+        if gender:
+            segment["gender"] = gender
+    return speaker_genders
 
 
 def _download_audio(url: str, output_dir: Path, max_seconds: int | None) -> tuple[Path, float]:
@@ -224,12 +908,181 @@ def _transcribe(
         batch_size=int(os.getenv("WHISPER_BATCH_SIZE", "16")),
         beam_size=beam_size,
         language=LANGUAGE_CODES[source_language],
+        word_timestamps=True,
     )
-    return [
-        {"start": float(segment.start), "end": float(segment.end), "text": segment.text.strip()}
-        for segment in segments
-        if segment.text.strip()
-    ]
+    result = []
+    for segment in segments:
+        text = segment.text.strip()
+        if not text:
+            continue
+        words = [
+            {
+                "start": float(word.start),
+                "end": float(word.end),
+                "word": word.word,
+            }
+            for word in (segment.words or [])
+            if word.start is not None and word.end is not None
+        ]
+        result.append(
+            {
+                "start": float(segment.start),
+                "end": float(segment.end),
+                "text": text,
+                "words": words,
+            }
+        )
+    return result
+
+
+def _estimate_pitch_hz(
+    samples: np.ndarray,
+    rate: int,
+    min_hz: float = 75.0,
+    max_hz: float = 350.0,
+) -> float | None:
+    """Estimate the median fundamental frequency of a short audio slice.
+
+    Uses frame-wise autocorrelation (via FFT) and ignores unvoiced/silent
+    frames, which is enough to separate typical male and female voices.
+    """
+    frame_len = int(rate * 0.04)
+    if len(samples) < frame_len:
+        return None
+    hop = max(1, int(rate * 0.02))
+    frame_count = 1 + (len(samples) - frame_len) // hop
+    indexes = (
+        np.linspace(0, frame_count - 1, 80).astype(int)
+        if frame_count > 80
+        else np.arange(frame_count)
+    )
+    frames = np.stack([
+        samples[index * hop:index * hop + frame_len] for index in indexes
+    ]).astype(np.float32)
+    frames -= frames.mean(axis=1, keepdims=True)
+    frames *= np.hanning(frame_len).astype(np.float32)
+
+    energy = np.sqrt(np.mean(frames ** 2, axis=1))
+    if not len(energy) or energy.max() < 1e-5:
+        return None
+    frames = frames[energy > max(1e-5, energy.max() * 0.05)]
+    if not len(frames):
+        return None
+
+    size = 1 << (2 * frame_len - 1).bit_length()
+    spectrum = np.fft.rfft(frames, n=size, axis=1)
+    autocorrelation = np.fft.irfft(
+        spectrum * np.conj(spectrum), n=size, axis=1
+    )[:, :frame_len]
+    autocorrelation /= autocorrelation[:, :1] + 1e-9
+
+    min_lag = max(1, int(rate / max_hz))
+    max_lag = min(frame_len - 1, int(rate / min_hz))
+    if max_lag <= min_lag:
+        return None
+    window = autocorrelation[:, min_lag:max_lag + 1]
+    peak_values = window.max(axis=1)
+    peak_lags = window.argmax(axis=1) + min_lag
+
+    voiced = peak_values >= 0.3
+    if not voiced.any():
+        return None
+    frequencies = rate / peak_lags[voiced]
+    frequencies = frequencies[(frequencies >= min_hz) & (frequencies <= max_hz)]
+    if not len(frequencies):
+        return None
+    return float(np.median(frequencies))
+
+
+def _analyze_voices(wav_path: Path, segments: list[dict]) -> None:
+    """Add ``gender`` and ``pitch_hz`` to each segment from its own audio."""
+    audio, rate = _read_wav_mono(wav_path)
+    previous_gender: str | None = None
+    for segment in segments:
+        start = max(0, int(segment["start"] * rate))
+        end = min(len(audio), int(segment["end"] * rate))
+        pitch = _estimate_pitch_hz(audio[start:end], rate) if end > start else None
+        if pitch is None:
+            segment["pitch_hz"] = None
+            segment["gender"] = previous_gender
+        else:
+            gender = "male" if pitch < MALE_PITCH_THRESHOLD_HZ else "female"
+            segment["pitch_hz"] = round(pitch, 1)
+            segment["gender"] = gender
+            previous_gender = gender
+
+    # Leading segments without pitch inherit the first detected gender.
+    first_known = next((item["gender"] for item in segments if item["gender"]), None)
+    for segment in segments:
+        if not segment.get("gender"):
+            segment["gender"] = first_known
+
+    del audio
+    males = sum(1 for item in segments if item.get("gender") == "male")
+    females = sum(1 for item in segments if item.get("gender") == "female")
+    unknowns = len(segments) - males - females
+    logger.info(
+        "Voces detectadas por segmento: male=%d female=%d unknown=%d", males, females, unknowns
+    )
+
+
+def _assign_voices(
+    segments: list[dict],
+    target_language: str,
+    override_voice: str | None = None,
+) -> None:
+    """Choose a TTS voice per segment.
+
+    Every diarized speaker gets its own voice inside the pool of its detected
+    gender, so two male speakers do not share the same voice. If the gender
+    classifier cannot be used, the pitch-based gender is the safety net.
+    """
+    if override_voice:
+        resolved = DEFAULT_TTS_VOICES.get(override_voice, override_voice)
+        for segment in segments:
+            segment["tts_voice"] = resolved
+        return
+
+    pools = TTS_VOICE_POOLS.get(target_language) or {}
+
+    def pool_for(gender: str | None) -> list[str]:
+        return (
+            pools.get(gender or "female")
+            or pools.get("female")
+            or [FALLBACK_TTS_VOICE]
+        )
+
+    speaker_genders: dict[str, str] = {}
+    speaker_order: list[str] = []
+    for segment in segments:
+        speaker = segment.get("speaker")
+        if not speaker:
+            continue
+        if speaker not in speaker_genders:
+            speaker_genders[speaker] = segment.get("gender") or "female"
+            speaker_order.append(speaker)
+
+    used = {"male": 0, "female": 0}
+    speaker_voices: dict[str, str] = {}
+    for speaker in speaker_order:
+        gender = speaker_genders[speaker]
+        pool = pool_for(gender)
+        index = used.get(gender, 0)
+        speaker_voices[speaker] = pool[index % len(pool)]
+        used[gender] = index + 1
+
+    for segment in segments:
+        speaker = segment.get("speaker")
+        if speaker and speaker in speaker_voices:
+            segment["tts_voice"] = speaker_voices[speaker]
+        else:
+            segment["tts_voice"] = pool_for(segment.get("gender"))[0]
+
+    if speaker_voices:
+        logger.info(
+            "Voces por hablante: %s",
+            ", ".join(f"{speaker}={voice}" for speaker, voice in speaker_voices.items()),
+        )
 
 
 def _translate(
@@ -264,11 +1117,11 @@ def _translate(
                 segment["text_translated"] = translation.strip()
 
 
-def _tts(segments: list[dict], clips_dir: Path, voice: str, concurrency: int) -> None:
+def _tts(segments: list[dict], clips_dir: Path, concurrency: int) -> None:
     import edge_tts
 
-    resolved_voice = DEFAULT_TTS_VOICES.get(voice, voice)
-    logger.info("Generando TTS: requested_voice=%s voice=%s", voice, resolved_voice)
+    voices = sorted({segment.get("tts_voice") or FALLBACK_TTS_VOICE for segment in segments})
+    logger.info("Generando TTS con %d voz(es): %s", len(voices), ", ".join(voices))
     shutil.rmtree(clips_dir, ignore_errors=True)
     clips_dir.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
@@ -276,12 +1129,12 @@ def _tts(segments: list[dict], clips_dir: Path, voice: str, concurrency: int) ->
     async def render() -> None:
         semaphore = asyncio.Semaphore(concurrency)
 
-        async def render_one(index: int, text: str) -> None:
+        async def render_one(index: int, text: str, voice: str) -> None:
             async with semaphore:
                 last_error = None
                 for attempt in range(3):
                     try:
-                        await edge_tts.Communicate(text, resolved_voice).save(
+                        await edge_tts.Communicate(text, voice).save(
                             str(clips_dir / f"{index:04d}.mp3")
                         )
                         return
@@ -291,7 +1144,11 @@ def _tts(segments: list[dict], clips_dir: Path, voice: str, concurrency: int) ->
                 failures.append(f"{index}: {last_error}")
 
         await asyncio.gather(*(
-            render_one(index, segment["text_translated"])
+            render_one(
+                index,
+                segment["text_translated"],
+                segment.get("tts_voice") or FALLBACK_TTS_VOICE,
+            )
             for index, segment in enumerate(segments)
             if segment["text_translated"].strip()
         ))
@@ -403,7 +1260,7 @@ def procesar_video(
     url: str,
     source_language: str = "eng_Latn",
     target_language: str = "spa_Latn",
-    voice: str = "es-ES-ElviraNeural",
+    voice: str | None = None,
     output_dir: str | Path | None = None,
     max_seconds: int | None = None,
     whisper_model: str = "small",
@@ -414,6 +1271,10 @@ def procesar_video(
 
     Models are cached by configuration, so subsequent calls reuse the same
     in-memory models. ``on_progress`` receives a stage name and a 0..1 value.
+    Diarization and gender classification always run: pyannote separates the
+    speakers, XLS-R chooses the gender pool and every speaker receives a
+    different voice. A pitch-based path exists only as a safety net if a model
+    cannot be loaded.
     """
     if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
         raise ValueError("Idioma de origen o destino no soportado.")
@@ -442,13 +1303,40 @@ def procesar_video(
         raise RuntimeError("Whisper no devolvió segmentos.")
     _progress(on_progress, "transcription", 1.0)
 
+    _progress(on_progress, "diarization", 0.0)
+    turns = _diarize(wav_path, active_device)
+    if turns:
+        turns = _relabel_turns(turns, wav_path, active_device)
+        _assign_speakers(segments, turns)
+    _progress(on_progress, "diarization", 1.0)
+
+    _progress(on_progress, "voices", 0.0)
+    if turns:
+        segments = _split_segments_by_speaker(segments, turns)
+    _analyze_voices(wav_path, segments)
+    if turns and not voice:
+        speaker_genders = _classify_speaker_genders(wav_path, turns, active_device)
+        if speaker_genders:
+            _apply_gender_map(segments, speaker_genders)
+        else:
+            _apply_speaker_genders(segments)
+    _assign_voices(segments, target_language, voice)
+    # El clasificador XLS-R ya no se necesita; liberamos su VRAM antes de NLLB
+    # y Demucs, que son los siguientes en cargarse.
+    _release_gender_model()
+    # Los timestamps por palabra solo se usan para partir por hablante; no
+    # deben viajar en la respuesta de la API.
+    for segment in segments:
+        segment.pop("words", None)
+    _progress(on_progress, "voices", 1.0)
+
     _progress(on_progress, "translation", 0.0)
     _translate(segments, source_language, target_language, active_device, batch_size)
     _progress(on_progress, "translation", 1.0)
 
     _progress(on_progress, "tts", 0.0)
     clips_dir = output_path / "clips"
-    _tts(segments, clips_dir, voice, int(os.getenv("TTS_CONCURRENCY", "8")))
+    _tts(segments, clips_dir, int(os.getenv("TTS_CONCURRENCY", "8")))
     _progress(on_progress, "tts", 1.0)
 
     voice_audio = _assemble_voice(segments, clips_dir, seconds, workers)
@@ -474,4 +1362,9 @@ def precargar_modelos(whisper_model: str = "small") -> None:
     _get_whisper_model(whisper_model, device, compute_type)
     _get_translation_model(device)
     _get_demucs_model().to(device).eval()
+    _get_gender_model(device)
+    # La diarización también queda lista desde el arranque: en un despliegue
+    # que se despierta con la primera petición, el usuario no espera a que se
+    # descargue y cargue pyannote.
+    _get_diarization_pipeline(device)
     logger.info("Modelos precargados en %s.", device)
