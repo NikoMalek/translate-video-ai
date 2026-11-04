@@ -22,6 +22,9 @@ hay interruptores para desactivarlas. El backend decide la voz de cada hablante.
 - Traducción con NLLB-200 en español, inglés, francés, alemán, italiano,
   portugués, japonés y coreano.
 - Síntesis con Microsoft Edge TTS.
+- Ajuste automático de duración: acelera la traducción cuando no cabe en su
+  hueco y la estira con moderación cuando es más corta, recortando antes el
+  silencio que agrega el TTS.
 - Separación de voz y música con Demucs y mezcla final con FFmpeg.
 - Cola asíncrona con progreso por etapas y un único trabajo GPU simultáneo.
 - Soporte para GPU NVIDIA/CUDA y para CPU.
@@ -314,6 +317,30 @@ Todas las variables se leen desde `.env` en la raíz del repositorio.
 `PYANNOTE_MIN_SPEAKERS` y `PYANNOTE_MAX_SPEAKERS` son útiles cuando el público o
 el ruido se detectan como hablantes. No son necesarios para el funcionamiento
 normal.
+
+### Sincronización del doblaje
+
+Cada clip de Edge TTS se ajusta con el filtro `atempo` de FFmpeg antes de
+mezclarlo:
+
+- Si la traducción dura **más** que el hueco hasta el siguiente segmento, se
+  acelera (`atempo > 1`) para que no se solape con la siguiente voz.
+- Si dura **menos** que el segmento original, se ralentiza un poco
+  (`atempo < 1`) para reducir el silencio, sin llegar a sonar artificial.
+- Antes de medir, se recorta el silencio que Edge TTS añade al principio y al
+  final del clip. Así el ajuste se calcula sobre el habla real.
+
+| Variable | Predeterminado | Descripción |
+|---|---|---|
+| `DUB_MAX_TEMPO` | `1.5` | Aceleración máxima aplicada a un clip. |
+| `DUB_MIN_TEMPO` | `0.85` | Ralentización máxima aplicada a un clip. |
+| `DUB_MIN_SLOT_SECONDS` | `0.3` | Hueco mínimo usado para calcular el ajuste. |
+| `DUB_TRIM_SILENCE` | `1` | Recorta el silencio inicial y final del TTS. |
+
+Los clips que sigan sin caber incluso con `DUB_MAX_TEMPO` se registran en el
+log y pueden solaparse levemente con el siguiente segmento. Los segmentos sin
+audio TTS también se registran como advertencia para poder diagnosticar
+huecos mudos.
 
 ### Rendimiento
 

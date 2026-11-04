@@ -44,7 +44,18 @@ def _add_cuda_dll_dirs() -> None:
 _add_cuda_dll_dirs()
 
 SAMPLE_RATE = 44100
-MAX_TEMPO = 1.5
+# Ajuste de duración del doblaje. En FFmpeg ``atempo > 1`` acelera el clip y
+# ``atempo < 1`` lo ralentiza. Aceleramos cuando la traducción no cabe en el
+# hueco hasta el siguiente segmento y estiramos, con moderación, cuando dura
+# menos que el segmento original para no dejar silencios largos.
+MAX_TEMPO = float(os.getenv("DUB_MAX_TEMPO", "1.5"))
+MIN_TEMPO = float(os.getenv("DUB_MIN_TEMPO", "0.85"))
+MIN_SLOT_SECONDS = float(os.getenv("DUB_MIN_SLOT_SECONDS", "0.3"))
+TRIM_TTS_SILENCE = os.getenv("DUB_TRIM_SILENCE", "1").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 LANGUAGE_CODES = {
     "eng_Latn": "en",
     "spa_Latn": "es",
@@ -1116,6 +1127,50 @@ def _translate(
             for segment, translation in zip(segments[start:start + batch_size], translations):
                 segment["text_translated"] = translation.strip()
 
+    # NLLB puede devolver una cadena vacía en segmentos muy cortos. Si eso
+    # pasa, ese fragmento se quedaría mudo: reintentamos uno a uno con más
+    # beams antes de darlo por perdido.
+    empty = [
+        index for index, segment in enumerate(segments)
+        if not segment.get("text_translated")
+    ]
+    if empty:
+        logger.warning(
+            "NLLB devolvió %d traducción(es) vacía(s); reintentando una a una.",
+            len(empty),
+        )
+        with torch.inference_mode():
+            for index in empty:
+                text = segments[index]["text"].strip()
+                if not text:
+                    continue
+                encoded = tokenizer(
+                    [text],
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=256,
+                ).to(device)
+                generated = model.generate(
+                    **encoded,
+                    forced_bos_token_id=target_id,
+                    max_new_tokens=256,
+                    num_beams=max(4, int(os.getenv("NLLB_BEAMS", "2"))),
+                )
+                segments[index]["text_translated"] = tokenizer.batch_decode(
+                    generated, skip_special_tokens=True
+                )[0].strip()
+        still_empty = [
+            index for index in empty
+            if not segments[index].get("text_translated")
+        ]
+        if still_empty:
+            logger.warning(
+                "Siguen sin traducción (%d): %s; quedarán sin voz.",
+                len(still_empty),
+                still_empty[:20],
+            )
+
 
 def _tts(segments: list[dict], clips_dir: Path, concurrency: int) -> None:
     import edge_tts
@@ -1126,43 +1181,114 @@ def _tts(segments: list[dict], clips_dir: Path, concurrency: int) -> None:
     clips_dir.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
 
+    pending = [
+        (index, segment["text_translated"], segment.get("tts_voice") or FALLBACK_TTS_VOICE)
+        for index, segment in enumerate(segments)
+        if segment["text_translated"].strip()
+    ]
+    empty = [
+        index for index, segment in enumerate(segments)
+        if not segment["text_translated"].strip()
+    ]
+    if empty:
+        logger.warning(
+            "Segmentos sin traducción (%d): %s; se quedarán sin voz.",
+            len(empty),
+            empty[:20],
+        )
+
     async def render() -> None:
         semaphore = asyncio.Semaphore(concurrency)
 
-        async def render_one(index: int, text: str, voice: str) -> None:
+        async def render_one(index: int, text: str, voice: str) -> bool:
             async with semaphore:
                 last_error = None
-                for attempt in range(3):
+                for attempt in range(4):
                     try:
                         await edge_tts.Communicate(text, voice).save(
                             str(clips_dir / f"{index:04d}.mp3")
                         )
-                        return
+                        return True
                     except Exception as error:
                         last_error = error
-                        await asyncio.sleep(0.6 * (attempt + 1))
+                        await asyncio.sleep(0.8 * (attempt + 1))
                 failures.append(f"{index}: {last_error}")
+                return False
 
-        await asyncio.gather(*(
-            render_one(
-                index,
-                segment["text_translated"],
-                segment.get("tts_voice") or FALLBACK_TTS_VOICE,
+        await asyncio.gather(*(render_one(*item) for item in pending))
+
+        # Los fallos suelen venir de la concurrencia con Edge TTS. Reintentamos
+        # uno a uno para que un segmento suelto no quede mudo en la mezcla.
+        if failures:
+            retry_indexes = [int(item.split(":", 1)[0]) for item in failures]
+            failures.clear()
+            logger.warning(
+                "Reintentando TTS secuencialmente en %d segmento(s): %s",
+                len(retry_indexes),
+                retry_indexes[:20],
             )
-            for index, segment in enumerate(segments)
-            if segment["text_translated"].strip()
-        ))
+            for index in retry_indexes:
+                segment = segments[index]
+                text = segment["text_translated"]
+                voice = segment.get("tts_voice") or FALLBACK_TTS_VOICE
+                await render_one(index, text, voice)
 
     asyncio.run(render())
-    total = sum(1 for segment in segments if segment["text_translated"].strip())
+    total = len(pending)
     if failures:
-        logger.warning("TTS falló en %d de %d segmentos: %s", len(failures), total, failures[0])
+        logger.warning(
+            "TTS falló definitivamente en %d de %d segmentos: %s",
+            len(failures),
+            total,
+            ", ".join(failures[:10]),
+        )
     if len(failures) > max(2, int(total * 0.3)):
         raise RuntimeError(f"TTS falló en {len(failures)} de {total} segmentos: {failures[0]}")
 
+def _trim_silence(audio: np.ndarray, rate: int) -> np.ndarray:
+    """Recorta el silencio que Edge TTS añade al principio y al final.
+
+    Sin esto, un clip con 0,4 s de silencio final parece más largo de lo que
+    realmente habla y se acelera de más para "encajar" en el hueco.
+    """
+    if not TRIM_TTS_SILENCE or len(audio) < rate // 20:
+        return audio
+    frame = max(1, int(rate * 0.02))
+    frames = len(audio) // frame
+    if frames < 2:
+        return audio
+    chunk = audio[: frames * frame].reshape(frames, frame).astype(np.float64)
+    energy = np.sqrt(np.mean(chunk ** 2, axis=1))
+    peak = float(energy.max())
+    if peak <= 1e-6:
+        return audio
+    threshold = max(peak * 0.02, 1e-4)
+    voiced = np.flatnonzero(energy >= threshold)
+    if not len(voiced):
+        return audio
+    pad = int(rate * 0.03)
+    start = max(0, int(voiced[0]) * frame - pad)
+    end = min(len(audio), (int(voiced[-1]) + 1) * frame + pad)
+    if end - start < rate // 50:
+        return audio
+    return audio[start:end]
+
+
+def _apply_fade(audio: np.ndarray, rate: int, seconds: float = 0.008) -> np.ndarray:
+    """Suaviza los bordes del clip para evitar chasquidos en la mezcla."""
+    length = min(len(audio), max(1, int(rate * seconds)))
+    if length < 2:
+        return audio
+    result = audio.copy()
+    ramp = np.linspace(0.0, 1.0, length, dtype=np.float32)
+    result[:length] *= ramp
+    result[-length:] *= ramp[::-1]
+    return result
+
+
 def _decode_clip(path: Path, tempo: float = 1.0) -> np.ndarray:
     command = [_ffmpeg_command(), "-v", "error", "-i", str(path)]
-    if tempo > 1.01:
+    if abs(tempo - 1.0) > 0.01:
         command += ["-filter:a", f"atempo={tempo:.4f}"]
     command += ["-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "f32le", "pipe:1"]
     process = subprocess.run(command, capture_output=True)
@@ -1176,37 +1302,86 @@ def _assemble_voice(segments: list[dict], clips_dir: Path, seconds: float, worke
 
     def decode(index: int) -> np.ndarray | None:
         path = clips_dir / f"{index:04d}.mp3"
-        return _decode_clip(path) if path.exists() else None
+        if not path.exists():
+            return None
+        return _trim_silence(_decode_clip(path), SAMPLE_RATE)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for index, audio in enumerate(pool.map(decode, range(len(segments)))):
             arrays[index] = audio
 
+    missing = [index for index, audio in enumerate(arrays) if audio is None or not len(audio)]
+    if missing:
+        logger.warning(
+            "Segmentos sin audio TTS (%d): %s; quedarán en silencio.",
+            len(missing),
+            missing[:20],
+        )
+
     redo: list[tuple[int, float]] = []
+    overflows: list[int] = []
     for index, (segment, audio) in enumerate(zip(segments, arrays)):
         if audio is None or not len(audio):
             continue
-        next_start = segments[index + 1]["start"] if index + 1 < len(segments) else segment["end"] + 1.5
-        slot = max(0.3, next_start - segment["start"])
-        factor = (len(audio) / SAMPLE_RATE) / slot
-        if factor > 1.05:
-            redo.append((index, min(factor, MAX_TEMPO)))
+        next_start = (
+            segments[index + 1]["start"]
+            if index + 1 < len(segments)
+            else segment["end"] + 1.5
+        )
+        slot = max(MIN_SLOT_SECONDS, next_start - segment["start"])
+        own = max(
+            MIN_SLOT_SECONDS,
+            min(segment["end"] - segment["start"], slot),
+        )
+        duration = len(audio) / SAMPLE_RATE
+        tempo = 1.0
+        if duration > slot * 1.02:
+            # La traducción no cabe hasta el siguiente segmento: acelerar.
+            tempo = min(duration / slot, MAX_TEMPO)
+            if duration / slot > MAX_TEMPO:
+                overflows.append(index)
+        elif duration < own * 0.98:
+            # La traducción es más corta que el original: estirar un poco para
+            # reducir el silencio, sin que la voz suene artificialmente lenta.
+            tempo = max(duration / own, MIN_TEMPO)
+        if abs(tempo - 1.0) > 0.01:
+            redo.append((index, tempo))
+
+    if redo:
+        logger.info(
+            "Ajuste de duración en %d clip(s): %s",
+            len(redo),
+            ", ".join(f"{index}={tempo:.2f}x" for index, tempo in redo[:20]),
+        )
+    if overflows:
+        logger.warning(
+            "La traducción sigue siendo más larga que su hueco en %d segmento(s) "
+            "(%s) incluso a %.2fx; se permitirá un pequeño solape con el siguiente.",
+            len(overflows),
+            overflows[:20],
+            MAX_TEMPO,
+        )
+
+    def decode_tempo(item: tuple[int, float]) -> np.ndarray:
+        index, tempo = item
+        return _trim_silence(
+            _decode_clip(clips_dir / f"{index:04d}.mp3", tempo), SAMPLE_RATE
+        )
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for (index, tempo), audio in zip(
-            redo,
-            pool.map(lambda item: _decode_clip(clips_dir / f"{item[0]:04d}.mp3", item[1]), redo),
-        ):
+        for (index, _), audio in zip(redo, pool.map(decode_tempo, redo)):
             arrays[index] = audio
 
     voice = np.zeros(int(seconds * SAMPLE_RATE) + SAMPLE_RATE, dtype=np.float32)
     for segment, audio in zip(segments, arrays):
-        if audio is None:
+        if audio is None or not len(audio):
             continue
         start = int(segment["start"] * SAMPLE_RATE)
+        if start >= len(voice):
+            continue
+        audio = _apply_fade(audio, SAMPLE_RATE)
         end = min(len(voice), start + len(audio))
-        if start < len(voice):
-            voice[start:end] += audio[:end - start]
+        voice[start:end] += audio[:end - start]
     return voice
 
 
@@ -1301,6 +1476,16 @@ def procesar_video(
     )
     if not segments:
         raise RuntimeError("Whisper no devolvió segmentos.")
+    speech_seconds = sum(
+        max(0.0, segment["end"] - segment["start"]) for segment in segments
+    )
+    logger.info(
+        "Transcripción: %d segmento(s), %.1fs de habla de %.1fs de video (%.0f%%).",
+        len(segments),
+        speech_seconds,
+        seconds,
+        100.0 * speech_seconds / max(seconds, 1e-6),
+    )
     _progress(on_progress, "transcription", 1.0)
 
     _progress(on_progress, "diarization", 0.0)
